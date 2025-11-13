@@ -419,9 +419,37 @@ async function sendToV0(prompt) {
         }
 
         const data = await response.json();
+        const generatedCode = data.result || data.code || data.markup || data;
         
         // Отображаем результат
-        displayResult(data.result || data.code || data.markup || data);
+        displayResult(generatedCode);
+
+        // Сохраняем в проект Platform API (асинхронно, не ждем)
+        // Используем быструю генерацию Model API, но сохраняем в проект для истории
+        try {
+            const stored = localStorage.getItem(`v0-project-${userId}`);
+            if (stored) {
+                const { projectId, chatId } = JSON.parse(stored);
+                if (projectId && chatId) {
+                    // Сохраняем в фоне, не ждем ответа
+                    fetch(API_SAVE_TO_PROJECT, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            projectId: projectId,
+                            chatId: chatId,
+                            code: typeof generatedCode === 'string' ? generatedCode : JSON.stringify(generatedCode)
+                        }),
+                    }).catch(err => {
+                        console.warn('Failed to save to project (non-critical):', err);
+                    });
+                }
+            }
+        } catch (saveError) {
+            console.warn('Error saving to project (non-critical):', saveError);
+        }
 
         // Вибро-отклик успеха
         tg.HapticFeedback.notificationOccurred('success');
