@@ -35,34 +35,63 @@ export default async function handler(req, res) {
         }
 
         // Отправляем запрос к v0.dev API
-        // Замените URL на актуальный endpoint v0.dev API
-        const v0Response = await fetch('https://api.v0.dev/api/generate', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`,
-            },
-            body: JSON.stringify({
-                prompt: prompt,
-                // Добавьте другие параметры если нужно
-            }),
-        });
+        // Попробуем несколько возможных endpoints
+        const endpoints = [
+            'https://v0.dev/api/generate',
+            'https://api.v0.dev/api/generate',
+            'https://v0.dev/api/v1/generate',
+        ];
 
-        if (!v0Response.ok) {
-            const errorText = await v0Response.text();
+        let v0Response = null;
+        let lastError = null;
+
+        // Пробуем каждый endpoint
+        for (const endpoint of endpoints) {
+            try {
+                v0Response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`,
+                    },
+                    body: JSON.stringify({
+                        prompt: prompt,
+                    }),
+                });
+
+                if (v0Response.ok) {
+                    break; // Успешный запрос
+                } else {
+                    const errorText = await v0Response.text();
+                    lastError = { endpoint, status: v0Response.status, error: errorText };
+                    console.log(`Endpoint ${endpoint} failed:`, lastError);
+                }
+            } catch (err) {
+                lastError = { endpoint, error: err.message };
+                console.log(`Endpoint ${endpoint} error:`, err.message);
+                continue;
+            }
+        }
+
+        if (!v0Response || !v0Response.ok) {
+            const errorText = lastError ? JSON.stringify(lastError) : 'Unknown error';
             console.error('v0.dev API error:', errorText);
-            return res.status(v0Response.status).json({ 
-                error: `v0.dev API error: ${v0Response.statusText}` 
+            return res.status(v0Response?.status || 500).json({ 
+                error: `v0.dev API error`,
+                details: lastError
             });
         }
 
         const data = await v0Response.json();
 
         // Возвращаем результат
+        // v0.dev может возвращать код в разных форматах
         return res.status(200).json({
-            result: data.code || data.markup || data,
+            result: data.code || data.markup || data.content || data,
             code: data.code,
             markup: data.markup,
+            content: data.content,
+            raw: data, // Для отладки
         });
 
     } catch (error) {
