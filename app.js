@@ -9,6 +9,7 @@ tg.expand();
 const resultContent = document.getElementById('resultContent');
 const commentInput = document.getElementById('commentInput');
 const sendButton = document.getElementById('sendButton');
+const newButton = document.getElementById('newButton');
 const resultArea = document.querySelector('.result-area');
 
 // Проверяем, что элементы найдены
@@ -99,8 +100,8 @@ function processImports(code) {
     return processedCode;
 }
 
-// Функция для сохранения кода и HTML разметки в localStorage
-function saveRenderedHTML(iframe, codeText) {
+// Функция для сохранения промпта и разметки в localStorage
+function savePromptAndMarkup(iframe, codeText, prompt) {
     try {
         // Валидация: не сохраняем явно пустой или некорректный код
         if (!codeText || codeText.trim().length < 50) {
@@ -124,7 +125,11 @@ function saveRenderedHTML(iframe, codeText) {
         const codeKey = `poligraf-last-code-${userId}`;
         localStorage.setItem(codeKey, codeText);
         
-        // Сохраняем HTML разметку из iframe для использования как референс в промптах
+        // Сохраняем промпт
+        const promptKey = `poligraf-last-prompt-${userId}`;
+        localStorage.setItem(promptKey, prompt);
+        
+        // Сохраняем HTML разметку из iframe для использования как референс
         try {
             const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
             if (iframeDoc && iframeDoc.body) {
@@ -135,7 +140,10 @@ function saveRenderedHTML(iframe, codeText) {
                 if (bodyHTML && bodyHTML.trim().length > 100) {
                     const htmlKey = `poligraf-last-html-${userId}`;
                     localStorage.setItem(htmlKey, bodyHTML);
-                    console.log('✅ Saved HTML reference, length:', bodyHTML.length);
+                    console.log('✅ Saved prompt, code and HTML to localStorage');
+                    console.log('  - Prompt:', prompt);
+                    console.log('  - Code length:', codeText.length);
+                    console.log('  - HTML length:', bodyHTML.length);
                 } else {
                     console.warn('⚠️ HTML too short or empty, not saving');
                 }
@@ -143,8 +151,6 @@ function saveRenderedHTML(iframe, codeText) {
         } catch (htmlError) {
             console.warn('Could not save HTML reference:', htmlError);
         }
-        
-        console.log('✅ Saved code to localStorage, length:', codeText.length);
     } catch (error) {
         console.warn('Error saving to localStorage:', error);
     }
@@ -250,9 +256,13 @@ function renderReactComponent(codeText, container) {
                 iframeDoc.write(htmlContent);
                 iframeDoc.close();
                 
-                // Сохраняем HTML разметку после рендеринга
+                // Сохраняем промпт и разметку после рендеринга
                 setTimeout(() => {
-                    saveRenderedHTML(iframe, codeText);
+                    const promptKey = `poligraf-last-prompt-${userId}`;
+                    const savedPrompt = localStorage.getItem(promptKey);
+                    if (savedPrompt) {
+                        savePromptAndMarkup(iframe, codeText, savedPrompt);
+                    }
                 }, 1000);
                 
                 const adjustHeight = () => {
@@ -349,33 +359,58 @@ function displayResult(result) {
     resultContent.scrollTop = resultContent.scrollHeight;
 }
 
-// Функция для загрузки сохраненного кода и его рендеринга
-function loadSavedHTML() {
+// Функция для загрузки сохраненного промпта и разметки
+function loadSavedPromptAndMarkup() {
     try {
         const codeKey = `poligraf-last-code-${userId}`;
+        const promptKey = `poligraf-last-prompt-${userId}`;
+        const htmlKey = `poligraf-last-html-${userId}`;
+        
         const savedCode = localStorage.getItem(codeKey);
+        const savedPrompt = localStorage.getItem(promptKey);
+        const savedHTML = localStorage.getItem(htmlKey);
         
-        console.log('Loading saved code, key:', codeKey);
-        console.log('Saved code exists:', !!savedCode);
-        console.log('Saved code length:', savedCode?.length || 0);
+        console.log('Loading saved data:');
+        console.log('  - Code exists:', !!savedCode);
+        console.log('  - Prompt exists:', !!savedPrompt);
+        console.log('  - HTML exists:', !!savedHTML);
         
+        // Подставляем промпт в текстовое поле
+        if (savedPrompt && savedPrompt.length > 0) {
+            commentInput.value = savedPrompt;
+            console.log('✅ Loaded prompt into input field:', savedPrompt);
+        }
+        
+        // Рендерим сохраненный код, если есть
         if (savedCode && savedCode.length > 0) {
-            console.log('Saved code preview:', savedCode.substring(0, 200));
-            
-            // Рендерим код заново (как при первой генерации)
-            // Это гарантирует, что все импорты и зависимости будут правильными
+            console.log('Rendering saved code...');
             displayResult(savedCode);
-            
             console.log('✅ Saved code loaded and rendered');
         } else {
-            console.log('No saved code found in localStorage');
+            console.log('No saved code found');
             resultContent.innerHTML = '';
         }
     } catch (error) {
-        console.error('Error loading saved code:', error);
-        console.error('Error details:', error.message, error.stack);
+        console.error('Error loading saved data:', error);
         resultContent.innerHTML = '';
     }
+}
+
+// Функция для очистки localStorage и текстового поля (кнопка "Новый")
+function clearAll() {
+    const codeKey = `poligraf-last-code-${userId}`;
+    const promptKey = `poligraf-last-prompt-${userId}`;
+    const htmlKey = `poligraf-last-html-${userId}`;
+    
+    localStorage.removeItem(codeKey);
+    localStorage.removeItem(promptKey);
+    localStorage.removeItem(htmlKey);
+    
+    commentInput.value = '';
+    resultContent.innerHTML = '';
+    
+    console.log('✅ Cleared all saved data');
+    tg.HapticFeedback.impactOccurred('light');
 }
 
 // Функция для отправки запроса к v0.dev Model API
@@ -404,59 +439,23 @@ async function sendToV0(prompt) {
             console.error('resultArea not found for loading overlay');
         }
 
-        // Проверяем, есть ли сохраненный код для контекста (правка)
-        const codeKey = `poligraf-last-code-${userId}`;
-        const lastCode = localStorage.getItem(codeKey);
+        // Новая логика: всегда используем сохраненную разметку как референс, если она есть
+        const htmlKey = `poligraf-last-html-${userId}`;
+        const lastHTML = localStorage.getItem(htmlKey);
+        const savedPromptKey = `poligraf-last-prompt-${userId}`;
+        const savedPrompt = localStorage.getItem(savedPromptKey);
         
         let enhancedPrompt = prompt;
         
-        // Сначала проверяем, является ли это явной НОВОЙ генерацией (не правкой)
-        const newGenerationKeywords = [
-            'создай', 'сделай', 'приглашени', 'свадьб', 'день рождени', 'поздравлени',
-            'create', 'make', 'generate', 'new', 'invitation', 'wedding', 'birthday',
-            'card', 'страниц', 'компонент', 'component', 'форма', 'form'
-        ];
-        
-        const isNewGeneration = newGenerationKeywords.some(keyword => 
-            prompt.toLowerCase().includes(keyword) && 
-            !prompt.toLowerCase().includes('измени') && 
-            !prompt.toLowerCase().includes('прав')
-        );
-        
-        // Если есть сохраненный код И это НЕ новая генерация - используем для правок
-        if (lastCode && lastCode.length > 0 && !isNewGeneration) {
-            // Расширенный список ключевых слов для определения правок
-            const editKeywords = [
-                'измени', 'прав', 'добавь', 'убери', 'переделай', 
-                'поменяй', 'замени', 'change', 'modify', 'update', 'fix', 
-                'edit', 'color', 'цвет', 'розов', 'зелен', 'красн', 'син',
-                'желт', 'черн', 'бел', 'pink', 'green', 'red', 'blue', 
-                'yellow', 'black', 'white', 'больше', 'меньше', 'увелич',
-                'уменьш', 'bigger', 'smaller', 'increase', 'decrease'
-            ];
+        // Если есть сохраненная разметка - используем её как референс
+        if (lastHTML && lastHTML.length > 100) {
+            const maxHtmlLength = 10000;
+            const truncatedHTML = lastHTML.length > maxHtmlLength 
+                ? lastHTML.substring(0, maxHtmlLength) + '\n<!-- ... (HTML truncated) -->'
+                : lastHTML;
             
-            const isEdit = editKeywords.some(keyword => prompt.toLowerCase().includes(keyword));
-            
-            console.log('🔍 Checking if this is an edit request:');
-            console.log('  - Has saved code:', !!lastCode);
-            console.log('  - Code length:', lastCode.length);
-            console.log('  - User prompt:', prompt);
-            console.log('  - Is new generation:', isNewGeneration);
-            console.log('  - Is edit detected:', isEdit);
-            
-            if (isEdit) {
-                // Пытаемся использовать HTML разметку как референс (более понятно для модели)
-                const htmlKey = `poligraf-last-html-${userId}`;
-                const lastHTML = localStorage.getItem(htmlKey);
-                
-                if (lastHTML && lastHTML.length > 0) {
-                    // Используем HTML как визуальный референс
-                    const maxHtmlLength = 10000;
-                    const truncatedHTML = lastHTML.length > maxHtmlLength 
-                        ? lastHTML.substring(0, maxHtmlLength) + '\n<!-- ... (HTML truncated) -->'
-                        : lastHTML;
-                    
-                    enhancedPrompt = `Here is a reference of the current page (HTML markup):
+            // Формируем промпт: референс (разметка) + новый текст из поля
+            enhancedPrompt = `Here is a reference of the current page (HTML markup):
 
 \`\`\`html
 ${truncatedHTML}
@@ -465,39 +464,12 @@ ${truncatedHTML}
 I need to modify this page. Change request: "${prompt}"
 
 Please return the complete updated React/TSX component code that implements this change. Keep the same structure, layout, and styling. Only modify what was requested.`;
-                    
-                    console.log('✅ Using HTML reference for edit');
-                    console.log('HTML length:', truncatedHTML.length);
-                } else {
-                    // Если HTML нет, используем код, но с другой структурой промпта
-                    const maxCodeLength = 8000;
-                    const truncatedCode = lastCode.length > maxCodeLength 
-                        ? lastCode.substring(0, maxCodeLength) + '\n// ... (code truncated)'
-                        : lastCode;
-                    
-                    enhancedPrompt = `Here is a reference of the current React component code:
-
-\`\`\`tsx
-${truncatedCode}
-\`\`\`
-
-I need to modify this component. Change request: "${prompt}"
-
-Please return the complete updated React/TSX component code. Keep the same structure, layout, and styling. Only modify what was requested.`;
-                    
-                    console.log('✅ Using code reference for edit (no HTML available)');
-                    console.log('Code length:', truncatedCode.length);
-                }
-                
-                console.log('User request:', prompt);
-                console.log('Enhanced prompt length:', enhancedPrompt.length);
-            } else {
-                console.log('📝 New generation request (ignoring saved code)');
-            }
-        } else if (isNewGeneration) {
-            console.log('🆕 Explicit new generation request detected');
+            
+            console.log('✅ Using saved HTML as reference');
+            console.log('  - HTML length:', truncatedHTML.length);
+            console.log('  - New prompt text:', prompt);
         } else {
-            console.log('📝 New generation request (no saved code)');
+            console.log('📝 New generation (no saved markup)');
         }
 
         const controller = new AbortController();
@@ -531,6 +503,17 @@ Please return the complete updated React/TSX component code. Keep the same struc
         
         // Отображаем результат (заменяет предыдущий контент)
         displayResult(generatedCode);
+        
+        // Сохраняем промпт (полный текст из поля) и разметку после успешной генерации
+        // Разметка будет сохранена в renderReactComponent через savePromptAndMarkup
+        const promptKey = `poligraf-last-prompt-${userId}`;
+        localStorage.setItem(promptKey, prompt);
+        console.log('✅ Saved prompt to localStorage:', prompt);
+        
+        // Сохраняем код для рендеринга
+        const codeKey = `poligraf-last-code-${userId}`;
+        localStorage.setItem(codeKey, generatedCode);
+        console.log('✅ Saved code to localStorage');
 
         // Вибро-отклик успеха
         tg.HapticFeedback.notificationOccurred('success');

@@ -229,6 +229,30 @@ body {
     outline: none;
 }
 
+.new-button-icon {
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.7);
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: opacity 0.2s, color 0.2s;
+    margin-left: 4px;
+}
+
+.new-button-icon:active {
+    opacity: 0.6;
+    color: #ffffff;
+}
+
+.new-button-icon svg {
+    width: 20px;
+    height: 20px;
+}
+
 .send-button-icon {
     background: transparent;
     border: none;
