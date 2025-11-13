@@ -59,19 +59,51 @@ function displayResult(result) {
 
 // Функция для отправки запроса к v0.dev API
 async function sendToV0(prompt) {
+    let loadingIndicator = null;
+    let loadingTimeElement = null;
+    let startTime = null;
+    let timeInterval = null;
+
     try {
         // Показываем индикатор загрузки
         sendButton.disabled = true;
-        sendButton.textContent = 'Отправка...';
+        sendButton.textContent = 'Генерация...';
         
-        // Показываем загрузку в области результата
-        const loadingIndicator = document.createElement('div');
+        // Создаем красивый индикатор загрузки с анимацией
+        loadingIndicator = document.createElement('div');
         loadingIndicator.className = 'loading-indicator';
-        loadingIndicator.textContent = 'Генерация...';
+        
+        const spinner = document.createElement('div');
+        spinner.className = 'spinner';
+        
+        const loadingText = document.createElement('div');
+        loadingText.className = 'loading-text';
+        loadingText.textContent = 'Генерирую компонент...';
+        
+        loadingTimeElement = document.createElement('div');
+        loadingTimeElement.className = 'loading-time';
+        loadingTimeElement.textContent = '0 сек';
+        
+        loadingIndicator.appendChild(spinner);
+        loadingIndicator.appendChild(loadingText);
+        loadingIndicator.appendChild(loadingTimeElement);
+        
         resultContent.appendChild(loadingIndicator);
         resultContent.scrollTop = resultContent.scrollHeight;
 
-        // Отправляем запрос к backend
+        // Запускаем таймер
+        startTime = Date.now();
+        timeInterval = setInterval(() => {
+            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+            if (loadingTimeElement) {
+                loadingTimeElement.textContent = `${elapsed} сек`;
+            }
+        }, 1000);
+
+        // Отправляем запрос к backend с увеличенным таймаутом
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 55000); // 55 секунд (чуть меньше 60)
+
         const response = await fetch(API_ENDPOINT, {
             method: 'POST',
             headers: {
@@ -79,11 +111,19 @@ async function sendToV0(prompt) {
             },
             body: JSON.stringify({
                 prompt: prompt
-            })
+            }),
+            signal: controller.signal
         });
 
+        clearTimeout(timeoutId);
+
         // Убираем индикатор загрузки
-        loadingIndicator.remove();
+        if (loadingIndicator) {
+            loadingIndicator.remove();
+        }
+        if (timeInterval) {
+            clearInterval(timeInterval);
+        }
 
         if (!response.ok) {
             throw new Error(`Ошибка: ${response.status} ${response.statusText}`);
@@ -101,15 +141,23 @@ async function sendToV0(prompt) {
         console.error('Ошибка при отправке запроса:', error);
         
         // Убираем индикатор загрузки если есть
-        const loadingIndicator = resultContent.querySelector('.loading-indicator');
         if (loadingIndicator) {
             loadingIndicator.remove();
+        }
+        if (timeInterval) {
+            clearInterval(timeInterval);
         }
 
         // Показываем ошибку
         const errorElement = document.createElement('div');
         errorElement.className = 'error-message';
-        errorElement.textContent = `Ошибка: ${error.message}`;
+        
+        if (error.name === 'AbortError' || error.message.includes('timeout')) {
+            errorElement.textContent = 'Время ожидания истекло. Генерация занимает слишком долго. Попробуйте более простой запрос.';
+        } else {
+            errorElement.textContent = `Ошибка: ${error.message}`;
+        }
+        
         resultContent.appendChild(errorElement);
         resultContent.scrollTop = resultContent.scrollHeight;
 
