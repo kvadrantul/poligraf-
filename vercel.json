@@ -11,6 +11,9 @@
     },
     "api/v0/save-to-project.js": {
       "maxDuration": 60
+    },
+    "api/v0/get-project-content.js": {
+      "maxDuration": 30
     }
   },
   "rewrites": [
@@ -29,6 +32,10 @@
     {
       "source": "/api/v0/save-to-project",
       "destination": "/api/v0/save-to-project.js"
+    },
+    {
+      "source": "/api/v0/get-project-content",
+      "destination": "/api/v0/get-project-content.js"
     }
   ]
 }

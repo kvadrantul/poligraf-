@@ -17,6 +17,7 @@ const API_GENERATE = `${API_BASE}/api/generate`; // Model API - быстрая �
 const API_CREATE_PROJECT = `${API_BASE}/api/v0/create-project`; // Platform API - создание проекта
 const API_ITERATE = `${API_BASE}/api/v0/iterate`; // Platform API - итерация (медленно)
 const API_SAVE_TO_PROJECT = `${API_BASE}/api/v0/save-to-project`; // Platform API - сохранение результата
+const API_GET_PROJECT_CONTENT = `${API_BASE}/api/v0/get-project-content`; // Platform API - получение контента проекта
 
 // Получаем Telegram User ID
 const userId = tg.initDataUnsafe?.user?.id || `user_${Date.now()}`;
@@ -582,6 +583,75 @@ commentInput.addEventListener('keydown', (e) => {
         sendButton.click();
     }
 });
+
+// Функция для загрузки проекта при старте приложения
+async function loadProjectOnStartup() {
+    try {
+        // Проверяем, есть ли сохраненный проект
+        const stored = localStorage.getItem(`v0-project-${userId}`);
+        if (!stored) {
+            // Нет проекта - показываем приветственное сообщение
+            resultContent.innerHTML = `
+                <div style="padding: 20px; text-align: center; color: var(--tg-theme-hint-color, #999999);">
+                    <p style="font-size: 16px; margin-bottom: 12px;">👋 Добро пожаловать!</p>
+                    <p style="font-size: 14px;">Введите описание компонента, и я создам его для вас.</p>
+                    <p style="font-size: 12px; margin-top: 12px; opacity: 0.8;">Например: "Создай красивую кнопку"</p>
+                </div>
+            `;
+            return;
+        }
+
+        const { projectId, chatId } = JSON.parse(stored);
+        if (!projectId || !chatId) {
+            return;
+        }
+
+        // Загружаем контент проекта
+        console.log('Loading project content on startup:', projectId);
+        const response = await fetch(`${API_GET_PROJECT_CONTENT}?projectId=${projectId}&chatId=${chatId}`);
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data.hasContent && data.code && data.code.length > 0) {
+                // Есть контент - отображаем его
+                console.log('Project has content, displaying it');
+                displayResult(data.code);
+                
+                // Сохраняем в историю для использования в итерациях
+                saveToHistory(data.code);
+            } else {
+                // Нет контента - показываем приветствие
+                resultContent.innerHTML = `
+                    <div style="padding: 20px; text-align: center; color: var(--tg-theme-hint-color, #999999);">
+                        <p style="font-size: 16px; margin-bottom: 12px;">👋 Ваш проект готов!</p>
+                        <p style="font-size: 14px;">Введите описание компонента для генерации.</p>
+                    </div>
+                `;
+            }
+        } else {
+            console.warn('Failed to load project content');
+            // Показываем приветствие при ошибке
+            resultContent.innerHTML = `
+                <div style="padding: 20px; text-align: center; color: var(--tg-theme-hint-color, #999999);">
+                    <p style="font-size: 16px; margin-bottom: 12px;">👋 Добро пожаловать!</p>
+                    <p style="font-size: 14px;">Введите описание компонента для генерации.</p>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Error loading project on startup:', error);
+        // Показываем приветствие при ошибке
+        resultContent.innerHTML = `
+            <div style="padding: 20px; text-align: center; color: var(--tg-theme-hint-color, #999999);">
+                <p style="font-size: 16px; margin-bottom: 12px;">👋 Добро пожаловать!</p>
+                <p style="font-size: 14px;">Введите описание компонента для генерации.</p>
+            </div>
+        `;
+    }
+}
+
+// Загружаем проект при старте
+loadProjectOnStartup();
 
 // Обновляем стили в соответствии с темой Telegram
 document.body.style.backgroundColor = tg.themeParams.bg_color || '#ffffff';
