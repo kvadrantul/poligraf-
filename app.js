@@ -292,13 +292,9 @@ function displayResult(result) {
         resultItem.appendChild(textElement);
     }
 
-    // Добавляем разделитель если уже есть результаты
-    if (resultsHistory.length > 0) {
-        const separator = document.createElement('hr');
-        separator.className = 'result-separator';
-        resultContent.appendChild(separator);
-    }
-
+    // Очищаем предыдущие результаты, показываем только последний
+    resultContent.innerHTML = '';
+    
     resultContent.appendChild(resultItem);
     resultsHistory.push(result);
 
