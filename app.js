@@ -8,16 +8,12 @@ tg.expand();
 // Получаем элементы DOM
 const resultContent = document.getElementById('resultContent');
 const commentInput = document.getElementById('commentInput');
-const backButton = document.getElementById('backButton');
 const sendButton = document.getElementById('sendButton');
 const resultArea = document.querySelector('.result-area');
 
 // Проверяем, что элементы найдены
 if (!commentInput) {
     console.error('commentInput not found!');
-}
-if (!backButton) {
-    console.error('backButton not found!');
 }
 if (!resultContent) {
     console.error('resultContent not found!');
@@ -518,14 +514,6 @@ if (sendButton) {
     console.error('Cannot add event listener: sendButton is null');
 }
 
-// Обработчик кнопки "Назад"
-if (backButton) {
-    backButton.addEventListener('click', () => {
-        tg.close();
-    });
-} else {
-    console.error('Cannot add event listener: backButton is null');
-}
 
 // Загружаем сохраненную HTML при старте
 loadSavedHTML();
