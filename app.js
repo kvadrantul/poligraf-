@@ -391,8 +391,8 @@ async function sendToV0(prompt) {
         resultContent.scrollTop = resultContent.scrollHeight;
 
         // Определяем, является ли запрос итерацией (правкой)
-        // Для итераций используем Model API с контекстом предыдущего кода
-        // Это быстрее чем Platform API и дает контекст для правок
+        // Для итераций используем Platform API - это сохраняет правки в проект
+        // Для новых генераций используем быстрый Model API
         const history = loadHistory();
         const isIteration = history.length > 0 && (
             prompt.toLowerCase().includes('измени') ||
@@ -408,69 +408,115 @@ async function sendToV0(prompt) {
             prompt.toLowerCase().includes('edit')
         );
         
-        let enhancedPrompt = prompt;
+        let response;
         
-        // Если это итерация - добавляем контекст предыдущего кода
-        // Сначала пробуем из истории, потом из проекта
+        // Если это итерация - используем Platform API для сохранения в проект
         if (isIteration) {
-            let lastCode = '';
+            console.log('Detected iteration, using Platform API to save changes to project');
             
-            // Пробуем получить из истории
-            if (history.length > 0) {
-                lastCode = history[0].code;
-            }
-            
-            // Если нет в истории, пробуем загрузить из проекта
-            if (!lastCode || lastCode.length === 0) {
-                try {
-                    const stored = localStorage.getItem(`v0-project-${userId}`);
-                    if (stored) {
-                        const { projectId, chatId } = JSON.parse(stored);
+            // Получаем или создаем проект
+            let projectId, chatId;
+            try {
+                const stored = localStorage.getItem(`v0-project-${userId}`);
+                if (stored) {
+                    const parsed = JSON.parse(stored);
+                    projectId = parsed.projectId;
+                    chatId = parsed.chatId;
+                }
+                
+                // Если проекта нет - создаем
+                if (!projectId || !chatId) {
+                    console.log('Creating project for iteration');
+                    const projectResponse = await fetch(API_CREATE_PROJECT, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ userId }),
+                    });
+                    
+                    if (projectResponse.ok) {
+                        const projectData = await projectResponse.json();
+                        projectId = projectData.projectId;
+                        chatId = projectData.chatId;
+                        
                         if (projectId && chatId) {
-                            const contentResponse = await fetch(`${API_GET_PROJECT_CONTENT}?projectId=${projectId}&chatId=${chatId}`);
-                            if (contentResponse.ok) {
-                                const contentData = await contentResponse.json();
-                                if (contentData.hasContent && contentData.code) {
-                                    lastCode = contentData.code;
-                                    // Сохраняем в историю для будущего использования
-                                    saveToHistory(lastCode);
-                                }
-                            }
+                            localStorage.setItem(`v0-project-${userId}`, JSON.stringify({ projectId, chatId }));
+                            const projectsCount = parseInt(localStorage.getItem('v0-projects-count') || '0');
+                            localStorage.setItem('v0-projects-count', String(projectsCount + 1));
                         }
                     }
-                } catch (loadError) {
-                    console.warn('Failed to load code from project:', loadError);
                 }
-            }
-            
-            if (lastCode && lastCode.length > 0) {
-                console.log('Detected iteration, adding context from previous code');
-                // Ограничиваем размер предыдущего кода (чтобы не превысить лимиты токенов)
-                const maxCodeLength = 5000; // ~5000 символов
-                const truncatedCode = lastCode.length > maxCodeLength 
-                    ? lastCode.substring(0, maxCodeLength) + '\n// ... (code truncated)'
-                    : lastCode;
                 
-                // Формируем промпт для итерации - более прямой формат
-                enhancedPrompt = `Update this React component:\n\n\`\`\`tsx\n${truncatedCode}\n\`\`\`\n\nUser request: ${prompt}\n\nPlease update the component according to the user's request and return the complete updated code.`;
+                if (projectId && chatId) {
+                    // Используем Platform API для итерации (сохраняет в проект)
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 280000); // 280 секунд
+                    
+                    response = await fetch(API_ITERATE, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            projectId: projectId,
+                            chatId: chatId,
+                            prompt: prompt
+                        }),
+                        signal: controller.signal
+                    });
+                    
+                    clearTimeout(timeoutId);
+                } else {
+                    throw new Error('Failed to get or create project');
+                }
+            } catch (platformError) {
+                console.warn('Platform API failed, falling back to Model API:', platformError);
+                // Fallback на Model API с контекстом
+                let lastCode = '';
+                if (history.length > 0) {
+                    lastCode = history[0].code;
+                }
+                
+                let enhancedPrompt = prompt;
+                if (lastCode && lastCode.length > 0) {
+                    const maxCodeLength = 5000;
+                    const truncatedCode = lastCode.length > maxCodeLength 
+                        ? lastCode.substring(0, maxCodeLength) + '\n// ... (code truncated)'
+                        : lastCode;
+                    enhancedPrompt = `Update this React component:\n\n\`\`\`tsx\n${truncatedCode}\n\`\`\`\n\nUser request: ${prompt}\n\nPlease update the component according to the user's request and return the complete updated code.`;
+                }
+                
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 55000);
+                response = await fetch(API_GENERATE, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ prompt: enhancedPrompt }),
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
             }
-        }
-        
-        console.log('Using Model API for generation');
-        
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 55000);
+        } else {
+            // Новая генерация - используем быстрый Model API
+            console.log('Using Model API for new generation');
+            
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 55000);
 
-        const response = await fetch(API_GENERATE, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ prompt: enhancedPrompt }),
-            signal: controller.signal
-        });
-        
-        clearTimeout(timeoutId);
+            response = await fetch(API_GENERATE, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ prompt }),
+                signal: controller.signal
+            });
+            
+            clearTimeout(timeoutId);
+        }
 
         // Убираем индикатор загрузки
         if (loadingIndicator) {

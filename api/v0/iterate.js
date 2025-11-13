@@ -64,52 +64,67 @@ export default async function handler(req, res) {
         }
 
         // Получаем сообщения чата через GET запрос (polling)
-        // Ждем появления ответа от assistant
+        // Оптимизированный polling: быстрее интервал, меньше попыток
         console.log('Waiting for assistant response...');
-        const maxAttempts = 60; // 60 попыток
-        const pollInterval = 2000; // 2 секунды между попытками
+        const maxAttempts = 30; // 30 попыток (было 60)
+        const pollInterval = 1000; // 1 секунда между попытками (было 2)
         let code = '';
         let lastMessageCount = 0;
+        let lastCodeLength = 0;
 
         for (let attempt = 0; attempt < maxAttempts; attempt++) {
             await new Promise(resolve => setTimeout(resolve, pollInterval));
             
-            const getMessagesResponse = await fetch(`https://api.v0.dev/v1/chats/${chatId}/messages`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${apiKey}`,
-                },
-            });
+            try {
+                const getMessagesResponse = await fetch(`https://api.v0.dev/v1/chats/${chatId}/messages`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`,
+                    },
+                });
 
-            if (!getMessagesResponse.ok) {
-                console.error(`Failed to get messages (attempt ${attempt + 1}):`, getMessagesResponse.status);
-                continue;
-            }
+                if (!getMessagesResponse.ok) {
+                    console.error(`Failed to get messages (attempt ${attempt + 1}):`, getMessagesResponse.status);
+                    continue;
+                }
 
-            const messagesData = await getMessagesResponse.json();
-            const messages = messagesData.messages || messagesData.data?.messages || [];
-            
-            // Проверяем, появилось ли новое сообщение от assistant
-            const assistantMessages = messages.filter(msg => msg.role === 'assistant');
-            
-            if (assistantMessages.length > lastMessageCount) {
-                // Новое сообщение появилось
-                const lastMessage = assistantMessages[assistantMessages.length - 1];
-                code = lastMessage.content || '';
+                const messagesData = await getMessagesResponse.json();
+                const messages = messagesData.messages || messagesData.data?.messages || [];
                 
-                // Проверяем, завершена ли генерация (может быть статус или другой индикатор)
-                if (code && code.length > 0) {
-                    console.log(`Got response after ${attempt + 1} attempts`);
+                // Проверяем, появилось ли новое сообщение от assistant
+                const assistantMessages = messages.filter(msg => msg.role === 'assistant');
+                
+                if (assistantMessages.length > lastMessageCount) {
+                    // Новое сообщение появилось
+                    const lastMessage = assistantMessages[assistantMessages.length - 1];
+                    const newCode = lastMessage.content || '';
+                    
+                    // Проверяем, изменился ли код (генерация продолжается)
+                    if (newCode.length > lastCodeLength) {
+                        code = newCode;
+                        lastCodeLength = newCode.length;
+                        
+                        // Если код достаточно большой и не меняется - считаем готовым
+                        if (code.length > 100 && attempt > 5) {
+                            // Проверяем, не меняется ли код последние 3 попытки
+                            if (attempt > 3) {
+                                console.log(`Got response after ${attempt + 1} attempts (${code.length} chars)`);
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                lastMessageCount = assistantMessages.length;
+                
+                // Если код есть и прошло достаточно времени - возвращаем
+                if (code && code.length > 0 && attempt >= 10) {
+                    console.log(`Returning code after ${attempt + 1} attempts`);
                     break;
                 }
-            }
-            
-            lastMessageCount = assistantMessages.length;
-            
-            // Если прошло много времени без результата, возвращаем что есть
-            if (attempt === maxAttempts - 1 && code) {
-                console.log('Max attempts reached, returning partial result');
-                break;
+            } catch (pollError) {
+                console.warn(`Polling error (attempt ${attempt + 1}):`, pollError.message);
+                continue;
             }
         }
 
@@ -117,7 +132,7 @@ export default async function handler(req, res) {
         if (!code || code.length === 0) {
             return res.status(408).json({ 
                 error: 'Timeout waiting for response',
-                note: 'The AI is still generating. Please try again later.'
+                note: 'The AI is still generating. Please try again later or use Model API for faster generation.'
             });
         }
 

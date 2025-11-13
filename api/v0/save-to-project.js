@@ -32,17 +32,24 @@ export default async function handler(req, res) {
         }
 
         // Сохраняем код в проект через отправку сообщения в чат
-        // Используем короткий таймаут и не ждем ответа от AI
+        // Пробуем более короткий и простой формат сообщения
         console.log('Saving code to project:', projectId);
         
-        // Ограничиваем размер кода для быстрой отправки
-        const maxCodeLength = 3000;
+        // Ограничиваем размер кода - возможно проблема в длине
+        // v0.dev может иметь лимит на длину сообщения
+        const maxCodeLength = 2000; // Уменьшили до 2000 символов
         const codeToSave = code.length > maxCodeLength 
-            ? code.substring(0, maxCodeLength) + '\n// ... (truncated)'
+            ? code.substring(0, maxCodeLength) + '\n// ... (code truncated for saving)'
             : code;
         
+        // Пробуем более простой формат сообщения
+        // Возможно проблема в том, что мы просим "сохранить", а нужно просто отправить код
+        const saveMessage = codeToSave.length < 500 
+            ? `Here is the code:\n\n\`\`\`tsx\n${codeToSave}\n\`\`\``
+            : `Code (${codeToSave.length} chars):\n\n\`\`\`tsx\n${codeToSave}\n\`\`\``;
+        
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 секунд максимум
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 секунд максимум
         
         try {
             const saveResponse = await fetch(`https://api.v0.dev/v1/chats/${chatId}/messages`, {
@@ -52,45 +59,54 @@ export default async function handler(req, res) {
                     'Authorization': `Bearer ${apiKey}`,
                 },
                 body: JSON.stringify({
-                    message: `Save this code:\n\n\`\`\`tsx\n${codeToSave}\n\`\`\``
+                    message: saveMessage
                 }),
                 signal: controller.signal
             });
 
             clearTimeout(timeoutId);
 
-            // Не ждем ответа от AI, просто отправляем сообщение
-            // Если запрос ушел - считаем успешным
-            if (saveResponse.ok || saveResponse.status === 200 || saveResponse.status === 201) {
+            // Проверяем статус ответа
+            if (saveResponse.ok) {
+                console.log('Code save request sent successfully');
                 return res.status(200).json({
                     success: true,
-                    message: 'Code saved to project'
+                    message: 'Code save request sent'
                 });
             } else {
-                // Логируем ошибку, но не блокируем
+                // Получаем детали ошибки
                 const errorText = await saveResponse.text().catch(() => 'Unknown error');
-                console.warn('v0.dev save warning:', errorText);
+                let errorData;
+                try {
+                    errorData = JSON.parse(errorText);
+                } catch {
+                    errorData = { error: errorText };
+                }
                 
-                // Все равно возвращаем успех, т.к. это не критично
+                console.warn('v0.dev save error:', {
+                    status: saveResponse.status,
+                    error: errorData
+                });
+                
+                // Возвращаем ошибку, но не критичную
                 return res.status(200).json({
-                    success: true,
-                    message: 'Code save initiated (may be processing)'
+                    success: false,
+                    message: 'Code save request failed',
+                    error: errorData,
+                    note: 'Code is still available in the app, but may not be saved to project'
                 });
             }
         } catch (error) {
             clearTimeout(timeoutId);
             
-            // Если таймаут или другая ошибка - не критично, просто логируем
-            if (error.name === 'AbortError') {
-                console.warn('Save request timeout (non-critical)');
-            } else {
-                console.warn('Save request error (non-critical):', error.message);
-            }
+            console.warn('Save request error:', error.message);
             
-            // Возвращаем успех, т.к. сохранение не критично
+            // Возвращаем ошибку, но не критичную
             return res.status(200).json({
-                success: true,
-                message: 'Code save initiated (may be processing in background)'
+                success: false,
+                message: 'Code save request failed',
+                error: error.message,
+                note: 'Code is still available in the app'
             });
         }
 
