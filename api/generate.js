@@ -88,9 +88,7 @@ export default async function handler(req, res) {
             return res.status(400).json({ error: 'userPrompt is required' });
         }
         
-        if (!systemPrompt) {
-            return res.status(400).json({ error: 'systemPrompt is required' });
-        }
+        // systemPrompt может быть null, если режим полиграфии выключен
 
         // Получаем API ключ из переменных окружения
         // Можно использовать либо V0_API_KEY (для v0.dev), либо OPENAI_API_KEY (для OpenAI)
@@ -186,17 +184,22 @@ export default async function handler(req, res) {
                 console.log('✅ Image attached to v0.dev API request');
             }
             
-            // Формируем сообщения: системный промпт отдельно, пользовательский промпт отдельно
-            const messages = [
-                {
+            // Формируем сообщения: системный промпт отдельно (если есть), пользовательский промпт отдельно
+            const messages = [];
+            
+            // Добавляем системный промпт только если он передан
+            if (systemPrompt) {
+                messages.push({
                     role: 'system',
                     content: systemPrompt
-                },
-                {
-                    role: 'user',
-                    content: userContent
-                }
-            ];
+                });
+            }
+            
+            // Добавляем пользовательское сообщение
+            messages.push({
+                role: 'user',
+                content: userContent
+            });
             
             apiResponse = await fetch(v0ApiUrl, {
                 method: 'POST',

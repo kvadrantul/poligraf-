@@ -10,6 +10,7 @@ const resultContent = document.getElementById('resultContent');
 const commentInput = document.getElementById('commentInput');
 const sendButton = document.getElementById('sendButton');
 const newButton = document.getElementById('newButton');
+const polygraphyButton = document.getElementById('polygraphyButton');
 const imageUploadButton = document.getElementById('imageUploadButton');
 const imageInput = document.getElementById('imageInput');
 const imagePreview = document.getElementById('imagePreview');
@@ -426,17 +427,33 @@ function loadSavedPromptAndMarkup() {
 }
 
 // Системный промпт для полиграфии (добавляется в начало каждого запроса)
-// Упрощенная версия для лучшей работы с изображениями
-const SYSTEM_PROMPT = `Ты — эксперт по дизайну полиграфической продукции. Создавай макеты для печати: открытки, визитки, буклеты, плакаты, календари, этикетки.
+const SYSTEM_PROMPT = `Ты — дизайнер элитной полиграфии. Создавай только: открытки, визитки, приглашения, плакаты.
 
-ВАЖНО: 
-- НЕ создавай веб-элементы (навигация, футеры, кнопки для клика)
-- НЕ используй "lorem ipsum" — только реальный текст
-- Используй 2-3 шрифта, гармоничные цвета для печати, активное белое пространство
-- Добавляй графические элементы и декоративные детали
-- Макет должен быть готов к отправке в типографию
+**КРИТИЧЕСКИЕ ПРАВИЛА:**
 
-Верни React/TSX компонент с готовым дизайном.`;
+- АБСОЛЮТНЫЙ ПРИОРИТЕТ: Детально воспроизводи графику из референсов (узоры, текстуры, иллюстрации) без упрощений
+
+- СТИЛЬ: Премиум-качество, дорогой вид, сложная композиция
+
+- ТИПОГРАФИКА: Только элитные шрифты, идеальная иерархия
+
+- ЗАПРЕЩЕНО: Веб-элементы, упрощённая графика, низкое качество
+
+**ФОКУС:** Детальная графика + элитная типографика + премиум-оформление`;
+
+// Состояние включения/выключения системного промпта полиграфии
+let polygraphyModeEnabled = true; // По умолчанию включено
+
+// Функция для обновления визуального состояния кнопки "Полиграфия"
+function updatePolygraphyButtonState() {
+    if (polygraphyButton) {
+        if (polygraphyModeEnabled) {
+            polygraphyButton.classList.add('active');
+        } else {
+            polygraphyButton.classList.remove('active');
+        }
+    }
+}
 
 // Функция для конвертации изображения в base64
 function convertImageToBase64(file) {
@@ -544,7 +561,7 @@ async function sendToV0(prompt) {
                                lastHTML.length > 500;
             
             if (isValidHTML) {
-                const maxHtmlLength = 10000;
+                const maxHtmlLength = 20000;
                 const truncatedHTML = lastHTML.length > maxHtmlLength 
                     ? lastHTML.substring(0, maxHtmlLength) + '\n<!-- ... (HTML truncated) -->'
                     : lastHTML;
@@ -583,7 +600,7 @@ ${truncatedHTML}
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({ 
-                systemPrompt: SYSTEM_PROMPT,
+                systemPrompt: polygraphyModeEnabled ? SYSTEM_PROMPT : null,
                 userPrompt: userPrompt,
                 image: uploadedImageBase64 || null
             }),
@@ -717,6 +734,20 @@ if (newButton) {
     });
 } else {
     console.error('Cannot add event listener: newButton is null');
+}
+
+// Обработчик кнопки-тумблера "Полиграфия"
+if (polygraphyButton) {
+    polygraphyButton.addEventListener('click', () => {
+        polygraphyModeEnabled = !polygraphyModeEnabled;
+        updatePolygraphyButtonState();
+        tg.HapticFeedback.impactOccurred('light');
+        console.log('✅ Polygraphy mode:', polygraphyModeEnabled ? 'enabled' : 'disabled');
+    });
+    // Инициализируем состояние кнопки при загрузке
+    updatePolygraphyButtonState();
+} else {
+    console.error('Cannot add event listener: polygraphyButton is null');
 }
 
 // Обработчик кнопки загрузки изображения
