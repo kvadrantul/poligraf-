@@ -88,6 +88,31 @@ function renderReactComponent(codeText, container) {
                     }
                 }
 
+                // Обрабатываем lucide-react импорты для iframe
+                let iframeCode = cleanCode;
+                const lucideImports = iframeCode.match(/import\s+{([^}]+)}\s+from\s+['"]lucide-react['"];?/);
+                if (lucideImports) {
+                    const icons = lucideImports[1].split(',').map(i => i.trim());
+                    const lucideVars = icons.map(icon => `const ${icon} = window.lucideReact?.${icon} || (() => React.createElement('svg', { width: 24, height: 24 }));`).join('\n');
+                    iframeCode = iframeCode.replace(
+                        /import\s+{([^}]+)}\s+from\s+['"]lucide-react['"];?/,
+                        lucideVars
+                    );
+                }
+                
+                // Убираем все остальные импорты
+                iframeCode = iframeCode.replace(/import\s+.*?from\s+['"][^'"]+['"];?/g, '');
+                
+                // Извлекаем имя компонента из export default
+                let componentName = 'Component';
+                const exportMatch = iframeCode.match(/export\s+default\s+function\s+(\w+)/);
+                if (exportMatch) {
+                    componentName = exportMatch[1];
+                }
+                
+                // Заменяем export default на обычное объявление
+                iframeCode = iframeCode.replace(/export\s+default\s+/, '');
+
                 // Создаем HTML страницу для iframe с React
                 const htmlContent = `
 <!DOCTYPE html>
@@ -108,11 +133,10 @@ function renderReactComponent(codeText, container) {
     <script type="text/babel">
         const React = window.React;
         const ReactDOM = window.ReactDOM;
-        const lucideReact = window.lucideReact || {};
         
-        ${cleanCode}
+        ${iframeCode}
         
-        const Component = module.exports.default || module.exports;
+        const Component = ${componentName};
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(React.createElement(Component));
     </script>
