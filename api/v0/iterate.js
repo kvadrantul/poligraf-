@@ -41,7 +41,7 @@ export default async function handler(req, res) {
                 'Authorization': `Bearer ${apiKey}`,
             },
             body: JSON.stringify({
-                content: prompt
+                message: prompt
             }),
         });
 
