@@ -13,9 +13,10 @@ const sendButton = document.getElementById('sendButton');
 // Конфигурация API (будет использоваться backend endpoint для безопасности)
 // Backend развернут на Vercel
 const API_BASE = 'https://poligraf-black.vercel.app';
-const API_GENERATE = `${API_BASE}/api/generate`; // Старый endpoint (Model API)
-const API_CREATE_PROJECT = `${API_BASE}/api/v0/create-project`; // Platform API
-const API_ITERATE = `${API_BASE}/api/v0/iterate`; // Platform API
+const API_GENERATE = `${API_BASE}/api/generate`; // Model API - быстрая генерация
+const API_CREATE_PROJECT = `${API_BASE}/api/v0/create-project`; // Platform API - создание проекта
+const API_ITERATE = `${API_BASE}/api/v0/iterate`; // Platform API - итерация (медленно)
+const API_SAVE_TO_PROJECT = `${API_BASE}/api/v0/save-to-project`; // Platform API - сохранение результата
 
 // Получаем Telegram User ID
 const userId = tg.initDataUnsafe?.user?.id || `user_${Date.now()}`;

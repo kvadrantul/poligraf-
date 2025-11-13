@@ -8,6 +8,9 @@
     },
     "api/v0/iterate.js": {
       "maxDuration": 300
+    },
+    "api/v0/save-to-project.js": {
+      "maxDuration": 60
     }
   },
   "rewrites": [
@@ -22,6 +25,10 @@
     {
       "source": "/api/v0/iterate",
       "destination": "/api/v0/iterate.js"
+    },
+    {
+      "source": "/api/v0/save-to-project",
+      "destination": "/api/v0/save-to-project.js"
     }
   ]
 }
