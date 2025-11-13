@@ -67,31 +67,7 @@ if (tg.initDataUnsafe?.user?.id) {
 
 console.log('Initialized userId:', userId);
 
-// Функция для обновления отладочной информации на экране
-function updateDebugInfo() {
-    const debugInfo = document.getElementById('debugInfo');
-    const debugUserId = document.getElementById('debugUserId');
-    const debugStoredUserId = document.getElementById('debugStoredUserId');
-    const debugProjectKey = document.getElementById('debugProjectKey');
-    const debugProjectData = document.getElementById('debugProjectData');
-    
-    if (debugInfo && debugUserId && debugStoredUserId && debugProjectKey && debugProjectData) {
-        const storedUserIdFromLS = localStorage.getItem('poligraf-user-id');
-        const lastHtmlKey = `poligraf-last-html-${userId}`;
-        const lastCodeKey = `poligraf-last-code-${userId}`;
-        const hasHtml = !!localStorage.getItem(lastHtmlKey);
-        const hasCode = !!localStorage.getItem(lastCodeKey);
-        
-        debugUserId.textContent = `Current userId: ${userId}`;
-        debugStoredUserId.textContent = `Stored userId: ${storedUserIdFromLS || 'NOT FOUND'}`;
-        debugProjectKey.textContent = `Last Code: ${hasCode ? 'EXISTS (' + (localStorage.getItem(`poligraf-last-code-${userId}`)?.length || 0) + ' chars)' : 'NOT FOUND'}`;
-        debugProjectData.textContent = `Code will be re-rendered on load`;
-        
-        debugInfo.style.display = 'block';
-    }
-}
-
-updateDebugInfo();
+// Функция для обновления отладочной информации отключена
 
 // Функция для обработки импортов в коде
 function processImports(code) {
