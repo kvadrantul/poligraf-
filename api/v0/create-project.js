@@ -81,17 +81,6 @@ export default async function handler(req, res) {
             });
         }
 
-        if (!createProjectResponse.ok) {
-            const errorText = await createProjectResponse.text();
-            console.error('v0.dev create project error:', errorText);
-            
-            // Если проект уже существует или другая ошибка
-            return res.status(createProjectResponse.status).json({ 
-                error: 'Failed to create project',
-                details: errorText
-            });
-        }
-
         const projectData = await createProjectResponse.json();
         const projectId = projectData.id || projectData.projectId;
 

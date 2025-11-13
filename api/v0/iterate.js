@@ -85,16 +85,6 @@ export default async function handler(req, res) {
             });
         }
 
-        if (!iterateResponse.ok) {
-            const errorText = await iterateResponse.text();
-            console.error('v0.dev iterate error:', errorText);
-            
-            return res.status(iterateResponse.status).json({ 
-                error: 'Failed to iterate',
-                details: errorText
-            });
-        }
-
         const responseData = await iterateResponse.json();
         
         // Извлекаем код из ответа
