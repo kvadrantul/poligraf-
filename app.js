@@ -62,9 +62,11 @@ function renderReactComponent(codeText, container) {
 
         // Создаем iframe для изоляции React компонента
         const iframe = document.createElement('iframe');
+        iframe.className = 'react-iframe';
         iframe.style.width = '100%';
+        iframe.style.height = '100%';
         iframe.style.border = 'none';
-        iframe.style.minHeight = '200px';
+        iframe.style.minHeight = '400px';
         iframe.style.backgroundColor = 'transparent';
         container.appendChild(iframe);
 
@@ -113,19 +115,32 @@ function renderReactComponent(codeText, container) {
                 // Заменяем export default на обычное объявление
                 iframeCode = iframeCode.replace(/export\s+default\s+/, '');
 
-                // Создаем HTML страницу для iframe с React
+                // Создаем HTML страницу для iframe с React и Tailwind CSS
                 const htmlContent = `
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Tailwind CSS для стилей компонентов -->
+    <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/lucide-react@latest/dist/umd/lucide-react.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
-        body { margin: 0; padding: 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        * { box-sizing: border-box; }
+        html, body { 
+            margin: 0; 
+            padding: 0; 
+            width: 100%;
+            height: 100%;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+        }
+        #root {
+            width: 100%;
+            min-height: 100%;
+        }
     </style>
 </head>
 <body>
@@ -260,24 +275,12 @@ async function sendToV0(prompt) {
         const spinner = document.createElement('div');
         spinner.className = 'spinner';
         
-        loadingTimeElement = document.createElement('div');
-        loadingTimeElement.className = 'loading-time';
-        loadingTimeElement.textContent = '0 сек';
-        
         loadingIndicator.appendChild(spinner);
-        loadingIndicator.appendChild(loadingTimeElement);
         
         resultContent.appendChild(loadingIndicator);
         resultContent.scrollTop = resultContent.scrollHeight;
 
-        // Запускаем таймер
-        startTime = Date.now();
-        timeInterval = setInterval(() => {
-            const elapsed = Math.floor((Date.now() - startTime) / 1000);
-            if (loadingTimeElement) {
-                loadingTimeElement.textContent = `${elapsed} сек`;
-            }
-        }, 1000);
+        // Таймер больше не нужен
 
         // Отправляем запрос к backend с увеличенным таймаутом
         const controller = new AbortController();
@@ -322,9 +325,6 @@ async function sendToV0(prompt) {
         // Убираем индикатор загрузки если есть
         if (loadingIndicator) {
             loadingIndicator.remove();
-        }
-        if (timeInterval) {
-            clearInterval(timeInterval);
         }
 
         // Показываем ошибку
