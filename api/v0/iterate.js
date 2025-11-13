@@ -33,12 +33,10 @@ export default async function handler(req, res) {
 
         // Отправляем сообщение в чат (итерация)
         // Согласно документации: POST https://api.v0.dev/v1/chats/:id/messages
-        // Увеличиваем таймаут для длительных запросов
         console.log('Sending message to chat:', chatId);
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 280000); // 280 секунд (чуть меньше 300)
         
-        const iterateResponse = await fetch(`https://api.v0.dev/v1/chats/${chatId}/messages`, {
+        // Отправляем сообщение (может вернуться быстро, но генерация идет асинхронно)
+        const sendMessageResponse = await fetch(`https://api.v0.dev/v1/chats/${chatId}/messages`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -47,58 +45,80 @@ export default async function handler(req, res) {
             body: JSON.stringify({
                 message: prompt
             }),
-            signal: controller.signal
         });
-        
-        clearTimeout(timeoutId);
 
-        if (!iterateResponse.ok) {
-            const errorText = await iterateResponse.text();
+        if (!sendMessageResponse.ok) {
+            const errorText = await sendMessageResponse.text();
             let errorData;
             try {
                 errorData = JSON.parse(errorText);
             } catch {
                 errorData = { error: errorText };
             }
-            console.error('v0.dev iterate error:', errorData);
+            console.error('v0.dev send message error:', errorData);
             
-            return res.status(iterateResponse.status).json({ 
-                error: 'Failed to iterate',
+            return res.status(sendMessageResponse.status).json({ 
+                error: 'Failed to send message',
                 details: errorData
             });
         }
 
-        const responseData = await iterateResponse.json();
-        
-        // Извлекаем код из ответа
-        // Согласно документации, ответ содержит messages с content
-        // Нужно найти последнее сообщение от assistant с кодом
+        // Получаем сообщения чата через GET запрос (polling)
+        // Ждем появления ответа от assistant
+        console.log('Waiting for assistant response...');
+        const maxAttempts = 60; // 60 попыток
+        const pollInterval = 2000; // 2 секунды между попытками
         let code = '';
-        
-        if (responseData.messages && Array.isArray(responseData.messages)) {
-            // Ищем последнее сообщение от assistant
-            const assistantMessages = responseData.messages
-                .filter(msg => msg.role === 'assistant')
-                .reverse();
+        let lastMessageCount = 0;
+
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            await new Promise(resolve => setTimeout(resolve, pollInterval));
             
-            if (assistantMessages.length > 0) {
-                const lastMessage = assistantMessages[0];
+            const getMessagesResponse = await fetch(`https://api.v0.dev/v1/chats/${chatId}/messages`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                },
+            });
+
+            if (!getMessagesResponse.ok) {
+                console.error(`Failed to get messages (attempt ${attempt + 1}):`, getMessagesResponse.status);
+                continue;
+            }
+
+            const messagesData = await getMessagesResponse.json();
+            const messages = messagesData.messages || messagesData.data?.messages || [];
+            
+            // Проверяем, появилось ли новое сообщение от assistant
+            const assistantMessages = messages.filter(msg => msg.role === 'assistant');
+            
+            if (assistantMessages.length > lastMessageCount) {
+                // Новое сообщение появилось
+                const lastMessage = assistantMessages[assistantMessages.length - 1];
                 code = lastMessage.content || '';
+                
+                // Проверяем, завершена ли генерация (может быть статус или другой индикатор)
+                if (code && code.length > 0) {
+                    console.log(`Got response after ${attempt + 1} attempts`);
+                    break;
+                }
             }
-        } else if (responseData.data?.messages) {
-            const assistantMessages = responseData.data.messages
-                .filter(msg => msg.role === 'assistant')
-                .reverse();
             
-            if (assistantMessages.length > 0) {
-                code = assistantMessages[0].content || '';
+            lastMessageCount = assistantMessages.length;
+            
+            // Если прошло много времени без результата, возвращаем что есть
+            if (attempt === maxAttempts - 1 && code) {
+                console.log('Max attempts reached, returning partial result');
+                break;
             }
-        } else {
-            // Fallback: ищем код в разных местах
-            code = responseData.code || 
-                   responseData.content || 
-                   responseData.message?.content ||
-                   JSON.stringify(responseData);
+        }
+
+        // Если не получили код, возвращаем ошибку
+        if (!code || code.length === 0) {
+            return res.status(408).json({ 
+                error: 'Timeout waiting for response',
+                note: 'The AI is still generating. Please try again later.'
+            });
         }
 
         return res.status(200).json({
