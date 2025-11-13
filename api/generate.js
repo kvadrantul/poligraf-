@@ -1,6 +1,56 @@
 // Vercel Serverless Function для работы с v0.dev API
 // Этот файл должен быть в папке /api для работы на Vercel
 
+// Функция для извлечения финального кода из ответа v0.dev
+// Убирает thinking часть и оставляет только код
+function extractCodeFromResponse(content) {
+    if (!content || typeof content !== 'string') {
+        return content;
+    }
+
+    // Убираем thinking блоки (могут быть в разных форматах)
+    // Формат 1: <thinking>...</thinking>
+    content = content.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '');
+    
+    // Формат 2: Thinking: ... или [thinking] ... [/thinking]
+    content = content.replace(/\[?thinking\]?:?[\s\S]*?\[\/thinking\]?/gi, '');
+    
+    // Формат 3: Текст "Thinking:" до следующего блока кода
+    const thinkingMatch = content.match(/thinking:[\s\S]*?(?=```|$)/i);
+    if (thinkingMatch) {
+        content = content.replace(thinkingMatch[0], '');
+    }
+
+    // Ищем код в markdown code blocks (```language ... ```)
+    const codeBlockMatch = content.match(/```[\w]*\n([\s\S]*?)```/);
+    if (codeBlockMatch) {
+        return codeBlockMatch[1].trim();
+    }
+
+    // Ищем код в нескольких code blocks - берем последний (финальный результат)
+    const allCodeBlocks = content.match(/```[\w]*\n([\s\S]*?)```/g);
+    if (allCodeBlocks && allCodeBlocks.length > 0) {
+        const lastBlock = allCodeBlocks[allCodeBlocks.length - 1];
+        const lastBlockContent = lastBlock.match(/```[\w]*\n([\s\S]*?)```/);
+        if (lastBlockContent) {
+            return lastBlockContent[1].trim();
+        }
+    }
+
+    // Если нет code blocks, ищем код после разделителей
+    // Обычно финальный код идет после thinking части
+    const sections = content.split(/\n---+\n|\n===+\n/);
+    if (sections.length > 1) {
+        // Берем последнюю секцию (финальный результат)
+        const lastSection = sections[sections.length - 1].trim();
+        // Убираем возможные метки типа "Result:", "Code:", "Final:"
+        return lastSection.replace(/^(result|code|final|output):\s*/i, '').trim();
+    }
+
+    // Если ничего не найдено, возвращаем весь контент, но убираем лишние пробелы
+    return content.trim();
+}
+
 export default async function handler(req, res) {
     // Разрешаем CORS для Telegram Mini App
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -147,9 +197,13 @@ export default async function handler(req, res) {
 
             const data = await apiResponse.json();
             console.log('v0.dev API response received');
-            generatedContent = data.choices?.[0]?.message?.content || 
-                             data.choices?.[0]?.message?.text ||
-                             'No content generated';
+            
+            let rawContent = data.choices?.[0]?.message?.content || 
+                           data.choices?.[0]?.message?.text ||
+                           'No content generated';
+            
+            // Извлекаем только финальный код, убирая thinking часть
+            generatedContent = extractCodeFromResponse(rawContent);
         }
 
         // Возвращаем результат
