@@ -20,7 +20,32 @@ const API_SAVE_TO_PROJECT = `${API_BASE}/api/v0/save-to-project`; // Platform AP
 const API_GET_PROJECT_CONTENT = `${API_BASE}/api/v0/get-project-content`; // Platform API - получение контента проекта
 
 // Получаем Telegram User ID
-const userId = tg.initDataUnsafe?.user?.id || `user_${Date.now()}`;
+// ВАЖНО: userId должен быть стабильным между перезагрузками
+// Используем Telegram User ID или создаем постоянный ID на основе initData
+let userId;
+if (tg.initDataUnsafe?.user?.id) {
+    userId = `tg_${tg.initDataUnsafe.user.id}`;
+} else if (tg.initData) {
+    // Пробуем извлечь из initData если есть
+    try {
+        const params = new URLSearchParams(tg.initData);
+        const userData = params.get('user');
+        if (userData) {
+            const user = JSON.parse(decodeURIComponent(userData));
+            userId = `tg_${user.id}`;
+        }
+    } catch (e) {
+        // Если не получилось - используем временный, но сохраняем в sessionStorage
+        userId = sessionStorage.getItem('poligraf-user-id') || `user_${Date.now()}`;
+        sessionStorage.setItem('poligraf-user-id', userId);
+    }
+} else {
+    // Fallback: используем sessionStorage для сохранения ID между перезагрузками
+    userId = sessionStorage.getItem('poligraf-user-id') || `user_${Date.now()}`;
+    sessionStorage.setItem('poligraf-user-id', userId);
+}
+
+console.log('Initialized userId:', userId);
 
 // Максимальное количество проектов (лимит для защиты)
 // Согласно документации v0.dev: 100 проектов на аккаунт
@@ -637,38 +662,66 @@ commentInput.addEventListener('keydown', (e) => {
 // Функция для загрузки проекта при старте приложения
 async function loadProjectOnStartup() {
     try {
+        console.log('Loading project on startup, userId:', userId);
+        
         // Проверяем, есть ли сохраненный проект
         const stored = localStorage.getItem(`v0-project-${userId}`);
+        console.log('Stored project data:', stored ? 'found' : 'not found');
+        
         if (!stored) {
             // Нет проекта - оставляем пустым (не показываем ничего)
+            console.log('No project found in localStorage');
             resultContent.innerHTML = '';
             return;
         }
 
-        const { projectId, chatId } = JSON.parse(stored);
+        let projectData;
+        try {
+            projectData = JSON.parse(stored);
+        } catch (parseError) {
+            console.error('Failed to parse stored project data:', parseError);
+            resultContent.innerHTML = '';
+            return;
+        }
+        
+        const { projectId, chatId } = projectData;
+        console.log('Project IDs from storage:', { projectId, chatId });
+        
         if (!projectId || !chatId) {
+            console.warn('Project ID or Chat ID missing');
+            resultContent.innerHTML = '';
             return;
         }
 
         // Загружаем контент проекта
-        console.log('Loading project content on startup:', projectId);
+        console.log('Loading project content on startup:', projectId, chatId);
         const response = await fetch(`${API_GET_PROJECT_CONTENT}?projectId=${projectId}&chatId=${chatId}`);
+        
+        console.log('Project content response status:', response.status);
         
         if (response.ok) {
             const data = await response.json();
+            console.log('Project content data:', { 
+                hasContent: data.hasContent, 
+                codeLength: data.code?.length || 0,
+                messagesCount: data.messagesCount 
+            });
+            
             if (data.hasContent && data.code && data.code.length > 0) {
                 // Есть контент - отображаем его
-                console.log('Project has content, displaying it');
+                console.log('Project has content, displaying it, length:', data.code.length);
                 displayResult(data.code);
                 
                 // Сохраняем в историю для использования в итерациях
                 saveToHistory(data.code);
             } else {
                 // Нет контента - оставляем пустым
+                console.log('Project exists but has no content');
                 resultContent.innerHTML = '';
             }
         } else {
-            console.warn('Failed to load project content');
+            const errorText = await response.text().catch(() => 'Unknown error');
+            console.warn('Failed to load project content:', response.status, errorText);
             // При ошибке оставляем пустым
             resultContent.innerHTML = '';
         }
