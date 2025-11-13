@@ -565,7 +565,7 @@ async function handleSendMessage() {
     
     if (comment) {
         await sendToV0(comment);
-        commentInput.value = '';
+        // НЕ очищаем поле - промпт остается для дальнейшего редактирования
     } else {
         tg.HapticFeedback.impactOccurred('light');
     }
