@@ -426,12 +426,55 @@ async function sendToV0(prompt) {
 
         // Сохраняем в проект Platform API (асинхронно, не ждем)
         // Используем быструю генерацию Model API, но сохраняем в проект для истории
-        try {
-            const stored = localStorage.getItem(`v0-project-${userId}`);
-            if (stored) {
-                const { projectId, chatId } = JSON.parse(stored);
+        // Автоматически создаем проект при первом использовании
+        (async () => {
+            try {
+                let projectId, chatId;
+                
+                // Проверяем, есть ли уже проект
+                const stored = localStorage.getItem(`v0-project-${userId}`);
+                if (stored) {
+                    const parsed = JSON.parse(stored);
+                    projectId = parsed.projectId;
+                    chatId = parsed.chatId;
+                }
+                
+                // Если проекта нет - создаем
+                if (!projectId || !chatId) {
+                    console.log('Creating project for first-time user');
+                    try {
+                        const projectResponse = await fetch(API_CREATE_PROJECT, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({ userId }),
+                        });
+                        
+                        if (projectResponse.ok) {
+                            const projectData = await projectResponse.json();
+                            projectId = projectData.projectId;
+                            chatId = projectData.chatId;
+                            
+                            if (projectId && chatId) {
+                                // Сохраняем в localStorage
+                                localStorage.setItem(`v0-project-${userId}`, JSON.stringify({ projectId, chatId }));
+                                const projectsCount = parseInt(localStorage.getItem('v0-projects-count') || '0');
+                                localStorage.setItem('v0-projects-count', String(projectsCount + 1));
+                                console.log('Project created and saved:', projectId);
+                            }
+                        } else {
+                            console.warn('Failed to create project, skipping save');
+                            return;
+                        }
+                    } catch (createError) {
+                        console.warn('Error creating project, skipping save:', createError);
+                        return;
+                    }
+                }
+                
+                // Сохраняем код в проект (в фоне, не ждем ответа)
                 if (projectId && chatId) {
-                    // Сохраняем в фоне, не ждем ответа
                     fetch(API_SAVE_TO_PROJECT, {
                         method: 'POST',
                         headers: {
@@ -446,10 +489,10 @@ async function sendToV0(prompt) {
                         console.warn('Failed to save to project (non-critical):', err);
                     });
                 }
+            } catch (saveError) {
+                console.warn('Error saving to project (non-critical):', saveError);
             }
-        } catch (saveError) {
-            console.warn('Error saving to project (non-critical):', saveError);
-        }
+        })();
 
         // Вибро-отклик успеха
         tg.HapticFeedback.notificationOccurred('success');
