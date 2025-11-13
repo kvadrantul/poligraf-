@@ -640,6 +640,15 @@ Please return the complete updated React/TSX component code that implements this
         localStorage.setItem(codeKey, generatedCode);
         console.log('✅ Saved code to localStorage');
 
+        // Очищаем загруженное изображение после использования (не сохраняем в localStorage)
+        if (uploadedImageBase64) {
+            uploadedImageBase64 = null;
+            if (imageInput) {
+                imageInput.value = '';
+            }
+            console.log('✅ Image cleared after use');
+        }
+
         // Вибро-отклик успеха
         tg.HapticFeedback.notificationOccurred('success');
 
