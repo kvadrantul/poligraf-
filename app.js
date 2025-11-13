@@ -136,7 +136,6 @@ function saveRenderedHTML(iframe, codeText) {
         localStorage.setItem(codeKey, codeText);
         
         console.log('✅ Saved code to localStorage, length:', codeText.length);
-        updateDebugInfo();
     } catch (error) {
         console.warn('Error saving code to localStorage:', error);
     }
