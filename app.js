@@ -368,10 +368,29 @@ function displayResult(result) {
         return;
     }
     
-    const isReactCode = codeText.includes('import') || codeText.includes('export') || 
-                        codeText.includes('function') || codeText.includes('className') || 
-                        codeText.includes('return (') || codeText.includes('React') ||
-                        codeText.includes('jsx') || codeText.includes('tsx');
+    // Улучшенное определение React кода
+    const hasReactKeywords = codeText.includes('import') || 
+                             codeText.includes('export') || 
+                             codeText.includes('function') || 
+                             codeText.includes('className') || 
+                             codeText.includes('return (') || 
+                             codeText.includes('React') ||
+                             codeText.includes('jsx') || 
+                             codeText.includes('tsx') ||
+                             codeText.includes('const ') ||
+                             codeText.includes('=>');
+    
+    // Проверяем, что это не просто HTML разметка
+    const isPlainHTML = codeText.trim().startsWith('<!DOCTYPE') || 
+                        (codeText.trim().startsWith('<html') && !codeText.includes('function') && !codeText.includes('export'));
+    
+    const isReactCode = hasReactKeywords && !isPlainHTML;
+    
+    console.log('🔍 Code analysis:');
+    console.log('  - Has React keywords:', hasReactKeywords);
+    console.log('  - Is plain HTML:', isPlainHTML);
+    console.log('  - Will render as React:', isReactCode);
+    console.log('  - Code preview (first 200 chars):', codeText.substring(0, 200));
     
     if (isReactCode) {
         const renderContainer = document.createElement('div');
@@ -379,10 +398,25 @@ function displayResult(result) {
         resultItem.appendChild(renderContainer);
         renderReactComponent(codeText, renderContainer);
     } else {
-        const textElement = document.createElement('div');
-        textElement.className = 'result-text';
-        textElement.textContent = codeText;
-        resultItem.appendChild(textElement);
+        // Если это HTML разметка, пытаемся обернуть её в React компонент
+        if (codeText.trim().startsWith('<') && codeText.includes('</')) {
+            console.log('⚠️ Received HTML instead of React code, wrapping in React component');
+            const wrappedCode = `export default function Component() {
+  return (
+    ${codeText}
+  );
+}`;
+            const renderContainer = document.createElement('div');
+            renderContainer.className = 'react-render-container';
+            resultItem.appendChild(renderContainer);
+            renderReactComponent(wrappedCode, renderContainer);
+        } else {
+            // Если это не HTML и не React, показываем как текст
+            const textElement = document.createElement('div');
+            textElement.className = 'result-text';
+            textElement.textContent = codeText;
+            resultItem.appendChild(textElement);
+        }
     }
 
     resultContent.appendChild(resultItem);
@@ -590,6 +624,12 @@ ${truncatedHTML}
             userPrompt += '\n\nСмотри на такой референс который я прикрепил в изображении.';
             console.log('✅ Image reference mentioned in prompt');
         }
+        
+        // Если режим полиграфии выключен, добавляем инструкцию возвращать React код
+        if (!polygraphyModeEnabled) {
+            userPrompt += '\n\nВерни React/TSX компонент с готовым дизайном.';
+            console.log('✅ Added React code instruction (polygraphy mode disabled)');
+        }
 
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 55000);
@@ -623,6 +663,12 @@ ${truncatedHTML}
 
         const data = await response.json();
         const generatedCode = data.result || data.code || data.markup || data;
+        
+        console.log('📦 Received response from API:');
+        console.log('  - Result type:', typeof generatedCode);
+        console.log('  - Result length:', generatedCode?.length || 0);
+        console.log('  - Result preview (first 300 chars):', generatedCode?.substring(0, 300) || 'N/A');
+        console.log('  - Polygraphy mode:', polygraphyModeEnabled ? 'enabled' : 'disabled');
         
         // Отображаем результат (заменяет предыдущий контент)
         displayResult(generatedCode);
