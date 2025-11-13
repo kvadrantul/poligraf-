@@ -163,14 +163,31 @@ export default async function handler(req, res) {
             // Улучшаем промпт - добавляем контекст для генерации React компонентов
             let enhancedPrompt = prompt;
             
-            // Если промпт короткий или не содержит явного запроса на компонент
-            if (prompt.length < 50 || (!prompt.toLowerCase().includes('component') && 
+            // Проверяем, содержит ли промпт уже контекст существующего кода (для правок)
+            // Если промпт содержит "existing code" или "BASE/FOUNDATION", значит это правка с контекстом
+            const hasExistingCodeContext = prompt.includes('existing code') || 
+                                         prompt.includes('BASE/FOUNDATION') ||
+                                         prompt.includes('Existing component code') ||
+                                         prompt.includes('```tsx') ||
+                                         prompt.includes('```ts');
+            
+            // Если это НЕ правка с контекстом, и промпт короткий или не содержит явного запроса на компонент
+            if (!hasExistingCodeContext && (prompt.length < 50 || (!prompt.toLowerCase().includes('component') && 
                 !prompt.toLowerCase().includes('кнопк') && 
                 !prompt.toLowerCase().includes('форма') &&
                 !prompt.toLowerCase().includes('страниц') &&
                 !prompt.toLowerCase().includes('ui') &&
-                !prompt.toLowerCase().includes('интерфейс'))) {
+                !prompt.toLowerCase().includes('интерфейс')))) {
                 enhancedPrompt = `Generate a React component for: ${prompt}\n\nPlease return only the React/TSX code, no explanations.`;
+            }
+            
+            // Логируем для отладки
+            if (hasExistingCodeContext) {
+                console.log('✅ Detected edit request with existing code context');
+                console.log('Prompt length:', prompt.length);
+                console.log('Prompt preview (first 500 chars):', prompt.substring(0, 500));
+            } else {
+                console.log('📝 New generation request (no existing code context)');
             }
 
             apiResponse = await fetch(v0ApiUrl, {

@@ -366,21 +366,23 @@ async function sendToV0(prompt) {
         // Если есть сохраненный код - ВСЕГДА используем его как основу для правок
         // Это гарантирует, что мы редактируем существующий компонент, а не создаем новый
         if (lastCode && lastCode.length > 0) {
-            const isEdit = prompt.toLowerCase().includes('измени') ||
-                          prompt.toLowerCase().includes('прав') ||
-                          prompt.toLowerCase().includes('добавь') ||
-                          prompt.toLowerCase().includes('убери') ||
-                          prompt.toLowerCase().includes('сделай') ||
-                          prompt.toLowerCase().includes('переделай') ||
-                          prompt.toLowerCase().includes('поменяй') ||
-                          prompt.toLowerCase().includes('замени') ||
-                          prompt.toLowerCase().includes('change') ||
-                          prompt.toLowerCase().includes('modify') ||
-                          prompt.toLowerCase().includes('update') ||
-                          prompt.toLowerCase().includes('fix') ||
-                          prompt.toLowerCase().includes('edit') ||
-                          prompt.toLowerCase().includes('color') ||
-                          prompt.toLowerCase().includes('цвет');
+            // Расширенный список ключевых слов для определения правок
+            const editKeywords = [
+                'измени', 'прав', 'добавь', 'убери', 'сделай', 'переделай', 
+                'поменяй', 'замени', 'change', 'modify', 'update', 'fix', 
+                'edit', 'color', 'цвет', 'розов', 'зелен', 'красн', 'син',
+                'желт', 'черн', 'бел', 'pink', 'green', 'red', 'blue', 
+                'yellow', 'black', 'white', 'больше', 'меньше', 'увелич',
+                'уменьш', 'bigger', 'smaller', 'increase', 'decrease'
+            ];
+            
+            const isEdit = editKeywords.some(keyword => prompt.toLowerCase().includes(keyword));
+            
+            console.log('🔍 Checking if this is an edit request:');
+            console.log('  - Has saved code:', !!lastCode);
+            console.log('  - Code length:', lastCode.length);
+            console.log('  - User prompt:', prompt);
+            console.log('  - Is edit detected:', isEdit);
             
             if (isEdit) {
                 // Используем полный код как основу (увеличиваем лимит для лучшего контекста)
@@ -394,14 +396,17 @@ async function sendToV0(prompt) {
 IMPORTANT: Use the existing code below as the BASE/FOUNDATION. Keep the same structure, layout, and styling approach. Only make the specific changes requested by the user.
 
 Existing component code:
-${'```'}tsx
+\`\`\`tsx
 ${truncatedCode}
-${'```'}
+\`\`\`
 
 User's modification request: "${prompt}"
 
 Please update ONLY what the user requested, keeping everything else the same. Return the COMPLETE updated component code with all the original structure preserved.`;
-                console.log('Using enhanced prompt with existing code as base for edit');
+                console.log('✅ Using enhanced prompt with existing code as base for edit');
+                console.log('Code length:', truncatedCode.length);
+                console.log('User request:', prompt);
+                console.log('Enhanced prompt length:', enhancedPrompt.length);
             }
         }
 
