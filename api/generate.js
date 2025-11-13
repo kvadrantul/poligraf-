@@ -5,9 +5,33 @@
 // Убирает thinking часть и оставляет только код
 function extractCodeFromResponse(content) {
     if (!content || typeof content !== 'string') {
-        return content;
+        return content || '';
     }
 
+    const originalContent = content;
+
+    // Сначала ищем код в markdown code blocks (```language ... ```)
+    // Используем глобальный поиск, чтобы найти все блоки
+    const codeBlockRegex = /```[\w]*\n?([\s\S]*?)```/g;
+    const allCodeBlocks = [];
+    let match;
+    
+    while ((match = codeBlockRegex.exec(content)) !== null) {
+        allCodeBlocks.push({
+            full: match[0],
+            code: match[1].trim(),
+            index: match.index
+        });
+    }
+
+    // Если есть code blocks, берем последний (финальный результат)
+    if (allCodeBlocks.length > 0) {
+        const lastBlock = allCodeBlocks[allCodeBlocks.length - 1];
+        console.log('Found code block, using last one');
+        return lastBlock.code;
+    }
+
+    // Если нет code blocks, пытаемся убрать thinking и вернуть остальное
     // Убираем thinking блоки (могут быть в разных форматах)
     // Формат 1: <thinking>...</thinking>
     content = content.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '');
@@ -15,40 +39,30 @@ function extractCodeFromResponse(content) {
     // Формат 2: Thinking: ... или [thinking] ... [/thinking]
     content = content.replace(/\[?thinking\]?:?[\s\S]*?\[\/thinking\]?/gi, '');
     
-    // Формат 3: Текст "Thinking:" до следующего блока кода
-    const thinkingMatch = content.match(/thinking:[\s\S]*?(?=```|$)/i);
-    if (thinkingMatch) {
-        content = content.replace(thinkingMatch[0], '');
+    // Формат 3: Текст "Thinking:" до следующего блока кода или разделителя
+    content = content.replace(/thinking:[\s\S]*?(?=```|---|===|\n\n)/gi, '');
+
+    // Если после удаления thinking остался контент, возвращаем его
+    const cleaned = content.trim();
+    if (cleaned.length > 0 && cleaned !== originalContent.trim()) {
+        console.log('Removed thinking, returning cleaned content');
+        return cleaned;
     }
 
-    // Ищем код в markdown code blocks (```language ... ```)
-    const codeBlockMatch = content.match(/```[\w]*\n([\s\S]*?)```/);
-    if (codeBlockMatch) {
-        return codeBlockMatch[1].trim();
-    }
-
-    // Ищем код в нескольких code blocks - берем последний (финальный результат)
-    const allCodeBlocks = content.match(/```[\w]*\n([\s\S]*?)```/g);
-    if (allCodeBlocks && allCodeBlocks.length > 0) {
-        const lastBlock = allCodeBlocks[allCodeBlocks.length - 1];
-        const lastBlockContent = lastBlock.match(/```[\w]*\n([\s\S]*?)```/);
-        if (lastBlockContent) {
-            return lastBlockContent[1].trim();
+    // Если ничего не изменилось, ищем код после разделителей
+    const sections = originalContent.split(/\n---+\n|\n===+\n/);
+    if (sections.length > 1) {
+        const lastSection = sections[sections.length - 1].trim();
+        const cleanedSection = lastSection.replace(/^(result|code|final|output):\s*/i, '').trim();
+        if (cleanedSection.length > 0) {
+            console.log('Found section after separator');
+            return cleanedSection;
         }
     }
 
-    // Если нет code blocks, ищем код после разделителей
-    // Обычно финальный код идет после thinking части
-    const sections = content.split(/\n---+\n|\n===+\n/);
-    if (sections.length > 1) {
-        // Берем последнюю секцию (финальный результат)
-        const lastSection = sections[sections.length - 1].trim();
-        // Убираем возможные метки типа "Result:", "Code:", "Final:"
-        return lastSection.replace(/^(result|code|final|output):\s*/i, '').trim();
-    }
-
-    // Если ничего не найдено, возвращаем весь контент, но убираем лишние пробелы
-    return content.trim();
+    // Если ничего не найдено, возвращаем весь контент (для отладки)
+    console.log('No code blocks found, returning full content');
+    return originalContent.trim();
 }
 
 export default async function handler(req, res) {
@@ -197,13 +211,26 @@ export default async function handler(req, res) {
 
             const data = await apiResponse.json();
             console.log('v0.dev API response received');
+            console.log('Full response:', JSON.stringify(data, null, 2));
             
             let rawContent = data.choices?.[0]?.message?.content || 
                            data.choices?.[0]?.message?.text ||
                            'No content generated';
             
+            console.log('Raw content length:', rawContent.length);
+            console.log('Raw content preview:', rawContent.substring(0, 500));
+            
             // Извлекаем только финальный код, убирая thinking часть
             generatedContent = extractCodeFromResponse(rawContent);
+            
+            console.log('Extracted content length:', generatedContent.length);
+            console.log('Extracted content preview:', generatedContent.substring(0, 500));
+            
+            // Если ничего не извлечено, возвращаем весь контент (для отладки)
+            if (!generatedContent || generatedContent.trim().length === 0) {
+                console.warn('No code extracted, returning full content');
+                generatedContent = rawContent;
+            }
         }
 
         // Возвращаем результат
