@@ -54,87 +54,98 @@ function processImports(code) {
     return processedCode;
 }
 
-// Функция для рендеринга React компонента
+// Функция для рендеринга React компонента в iframe (изоляция от основного приложения)
 function renderReactComponent(codeText, container) {
     try {
         // Очищаем контейнер
         container.innerHTML = '';
 
-        // Извлекаем только код компонента (убираем file= и другие метаданные)
-        let cleanCode = codeText;
+        // Создаем iframe для изоляции React компонента
+        const iframe = document.createElement('iframe');
+        iframe.style.width = '100%';
+        iframe.style.border = 'none';
+        iframe.style.minHeight = '200px';
+        iframe.style.backgroundColor = 'transparent';
+        container.appendChild(iframe);
+
+        // Ждем загрузки iframe
+        iframe.onload = () => {
+            try {
+                const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                
+                // Извлекаем только код компонента (убираем file= и другие метаданные)
+                let cleanCode = codeText;
+                cleanCode = cleanCode.replace(/^file="[^"]*"\s*\n?/gm, '');
+                
+                // Обрабатываем импорты
+                cleanCode = processImports(cleanCode);
+                
+                // Если код содержит export default, оставляем как есть
+                if (!cleanCode.includes('export default') && !cleanCode.includes('export')) {
+                    const functionMatch = cleanCode.match(/(function\s+\w+|const\s+\w+\s*=\s*\(|const\s+\w+\s*=\s*function)/);
+                    if (functionMatch) {
+                        cleanCode = cleanCode + '\n\nexport default ' + (cleanCode.match(/function\s+(\w+)/)?.[1] || 'Component');
+                    }
+                }
+
+                // Создаем HTML страницу для iframe с React
+                const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/lucide-react@latest/dist/umd/lucide-react.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        body { margin: 0; padding: 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel">
+        const React = window.React;
+        const ReactDOM = window.ReactDOM;
+        const lucideReact = window.lucideReact || {};
         
-        // Убираем строку file="..." если есть
-        cleanCode = cleanCode.replace(/^file="[^"]*"\s*\n?/gm, '');
+        ${cleanCode}
         
-        // Обрабатываем импорты
-        cleanCode = processImports(cleanCode);
-        
-        // Если код содержит export default, оставляем как есть
-        // Если нет, оборачиваем в функцию
-        if (!cleanCode.includes('export default') && !cleanCode.includes('export')) {
-            // Пытаемся найти функцию или компонент
-            const functionMatch = cleanCode.match(/(function\s+\w+|const\s+\w+\s*=\s*\(|const\s+\w+\s*=\s*function)/);
-            if (functionMatch) {
-                // Добавляем export default если его нет
-                cleanCode = cleanCode + '\n\nexport default ' + (cleanCode.match(/function\s+(\w+)/)?.[1] || 'Component');
-            }
-        }
-
-        // Создаем модуль с компонентом (React уже доступен глобально, не объявляем заново)
-        const moduleCode = `
-            (function() {
-                const React = window.React;
-                const ReactDOM = window.ReactDOM;
-                ${cleanCode}
-                return module.exports;
-            })()
-        `;
-
-        // Трансформируем JSX в JavaScript с помощью Babel
-        const transformedCode = Babel.transform(moduleCode, {
-            presets: ['react'],
-            plugins: []
-        }).code;
-
-        // Выполняем код в безопасном контексте
-        const moduleExports = {};
-        const module = { exports: moduleExports };
-        
-        // Создаем функцию для выполнения кода
-        const executeCode = new Function(
-            'React',
-            'ReactDOM',
-            'module',
-            'exports',
-            'window',
-            transformedCode
-        );
-
-        const result = executeCode(window.React, window.ReactDOM, module, module.exports, window);
-
-        // Получаем компонент
-        const Component = (result && result.default) || module.exports.default || module.exports;
-
-        if (!Component || typeof Component !== 'function') {
-            throw new Error('Компонент не найден или не является функцией. Убедитесь, что код содержит export default функцию.');
-        }
-
-        // Рендерим компонент
-        const root = ReactDOM.createRoot(container);
+        const Component = module.exports.default || module.exports;
+        const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(React.createElement(Component));
+    </script>
+</body>
+</html>
+                `;
+
+                // Записываем HTML в iframe
+                iframeDoc.open();
+                iframeDoc.write(htmlContent);
+                iframeDoc.close();
+
+            } catch (error) {
+                console.error('Ошибка рендеринга в iframe:', error);
+                container.innerHTML = `
+                    <div class="error-message">
+                        <strong>Ошибка рендеринга:</strong><br>
+                        ${error.message}
+                    </div>
+                `;
+            }
+        };
+
+        // Устанавливаем минимальную высоту и загружаем пустую страницу для инициализации
+        iframe.src = 'about:blank';
 
         return true;
     } catch (error) {
-        console.error('Ошибка рендеринга компонента:', error);
+        console.error('Ошибка создания iframe:', error);
         container.innerHTML = `
             <div class="error-message">
                 <strong>Ошибка рендеринга:</strong><br>
                 ${error.message}
-                <br><br>
-                <details>
-                    <summary>Исходный код</summary>
-                    <pre style="font-size: 12px; margin-top: 8px; white-space: pre-wrap;">${codeText.substring(0, 1000)}${codeText.length > 1000 ? '...' : ''}</pre>
-                </details>
             </div>
         `;
         return false;
@@ -143,11 +154,7 @@ function renderReactComponent(codeText, container) {
 
 // Функция для отображения результата
 function displayResult(result) {
-    // Убираем placeholder если есть
-    const placeholder = resultContent.querySelector('.placeholder');
-    if (placeholder) {
-        placeholder.remove();
-    }
+    // Placeholder больше не нужен
 
     // Создаем элемент для нового результата
     const resultItem = document.createElement('div');
@@ -229,16 +236,11 @@ async function sendToV0(prompt) {
         const spinner = document.createElement('div');
         spinner.className = 'spinner';
         
-        const loadingText = document.createElement('div');
-        loadingText.className = 'loading-text';
-        loadingText.textContent = 'Генерирую компонент...';
-        
         loadingTimeElement = document.createElement('div');
         loadingTimeElement.className = 'loading-time';
         loadingTimeElement.textContent = '0 сек';
         
         loadingIndicator.appendChild(spinner);
-        loadingIndicator.appendChild(loadingText);
         loadingIndicator.appendChild(loadingTimeElement);
         
         resultContent.appendChild(loadingIndicator);
