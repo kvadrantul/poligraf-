@@ -212,6 +212,9 @@ function renderReactComponent(codeText, container) {
         const React = window.React;
         const ReactDOM = window.ReactDOM;
         
+        // Импортируем хуки из React
+        const { useState, useEffect, useRef, useCallback, useMemo, useContext, useReducer } = React;
+        
         ${iframeCode}
         
         const Component = ${componentName};
