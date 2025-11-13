@@ -62,18 +62,46 @@ body {
     margin: 16px 0;
 }
 
+.react-render-container {
+    min-height: 100px;
+    padding: 16px;
+    background: var(--tg-theme-bg-color, #ffffff);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    overflow: auto;
+}
+
+.code-toggle-button {
+    margin-bottom: 8px;
+    padding: 6px 12px;
+    background: var(--tg-theme-secondary-bg-color, #f0f0f0);
+    color: var(--tg-theme-text-color, #000000);
+    border: 1px solid var(--tg-theme-hint-color, #e0e0e0);
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: opacity 0.2s;
+}
+
+.code-toggle-button:active {
+    opacity: 0.8;
+}
+
 .code-block {
     background: var(--tg-theme-secondary-bg-color, #f5f5f5);
     padding: 12px;
     border-radius: 6px;
     overflow-x: auto;
     font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
-    font-size: 14px;
+    font-size: 12px;
     line-height: 1.5;
     color: var(--tg-theme-text-color, #000000);
-    margin: 0;
+    margin-top: 8px;
     white-space: pre-wrap;
     word-wrap: break-word;
+    max-height: 300px;
+    overflow-y: auto;
 }
 
 .result-text {

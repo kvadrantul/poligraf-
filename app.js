@@ -17,6 +17,86 @@ const API_ENDPOINT = 'https://poligraf-black.vercel.app/api/generate';
 // История результатов (для отображения всех результатов в одном проекте)
 let resultsHistory = [];
 
+// Функция для рендеринга React компонента
+function renderReactComponent(codeText, container) {
+    try {
+        // Очищаем контейнер
+        container.innerHTML = '';
+
+        // Извлекаем только код компонента (убираем file= и другие метаданные)
+        let cleanCode = codeText;
+        
+        // Убираем строку file="..." если есть
+        cleanCode = cleanCode.replace(/^file="[^"]*"\s*\n?/gm, '');
+        
+        // Если код содержит export default, оставляем как есть
+        // Если нет, оборачиваем в функцию
+        if (!cleanCode.includes('export default') && !cleanCode.includes('export')) {
+            // Пытаемся найти функцию или компонент
+            const functionMatch = cleanCode.match(/(function\s+\w+|const\s+\w+\s*=\s*\(|const\s+\w+\s*=\s*function)/);
+            if (functionMatch) {
+                // Добавляем export default если его нет
+                cleanCode = cleanCode + '\n\nexport default ' + (cleanCode.match(/function\s+(\w+)/)?.[1] || 'Component');
+            }
+        }
+
+        // Создаем модуль с компонентом
+        const moduleCode = `
+            const React = window.React;
+            const ReactDOM = window.ReactDOM;
+            ${cleanCode}
+        `;
+
+        // Трансформируем JSX в JavaScript с помощью Babel
+        const transformedCode = Babel.transform(moduleCode, {
+            presets: ['react'],
+            plugins: []
+        }).code;
+
+        // Выполняем код в безопасном контексте
+        const moduleExports = {};
+        const module = { exports: moduleExports };
+        
+        // Создаем функцию для выполнения кода
+        const executeCode = new Function(
+            'React',
+            'ReactDOM',
+            'module',
+            'exports',
+            transformedCode
+        );
+
+        executeCode(window.React, window.ReactDOM, module, module.exports);
+
+        // Получаем компонент
+        const Component = module.exports.default || module.exports;
+
+        if (!Component) {
+            throw new Error('Компонент не найден. Убедитесь, что код содержит export default.');
+        }
+
+        // Рендерим компонент
+        const root = ReactDOM.createRoot(container);
+        root.render(React.createElement(Component));
+
+        return true;
+    } catch (error) {
+        console.error('Ошибка рендеринга компонента:', error);
+        container.innerHTML = `
+            <div class="error-message">
+                <strong>Ошибка рендеринга:</strong><br>
+                ${error.message}
+                <br><br>
+                <details>
+                    <summary>Исходный код</summary>
+                    <pre style="font-size: 12px; margin-top: 8px;">${codeText.substring(0, 500)}...</pre>
+                </details>
+            </div>
+        `;
+        return false;
+    }
+}
+
 // Функция для отображения результата
 function displayResult(result) {
     // Убираем placeholder если есть
@@ -29,17 +109,46 @@ function displayResult(result) {
     const resultItem = document.createElement('div');
     resultItem.className = 'result-item';
     
-    // Если результат содержит код (JSX/TSX), отображаем с подсветкой
-    if (result.code || result.markup) {
+    // Определяем, является ли результат кодом React компонента
+    const codeText = typeof result === 'string' ? result : (result.code || result.markup || JSON.stringify(result, null, 2));
+    const isReactCode = codeText.includes('import') || codeText.includes('export') || 
+                        codeText.includes('function') || codeText.includes('className') || 
+                        codeText.includes('return (') || codeText.includes('React') ||
+                        codeText.includes('jsx') || codeText.includes('tsx');
+    
+    if (isReactCode) {
+        // Создаем контейнер для рендеринга React компонента
+        const renderContainer = document.createElement('div');
+        renderContainer.className = 'react-render-container';
+        
+        // Кнопка для показа/скрытия кода
+        const codeToggle = document.createElement('button');
+        codeToggle.className = 'code-toggle-button';
+        codeToggle.textContent = '📄 Показать код';
+        let codeVisible = false;
+        
         const codeBlock = document.createElement('pre');
         codeBlock.className = 'code-block';
-        codeBlock.textContent = result.code || result.markup || result;
+        codeBlock.style.display = 'none';
+        codeBlock.textContent = codeText;
+        
+        codeToggle.onclick = () => {
+            codeVisible = !codeVisible;
+            codeBlock.style.display = codeVisible ? 'block' : 'none';
+            codeToggle.textContent = codeVisible ? '👁️ Скрыть код' : '📄 Показать код';
+        };
+        
+        resultItem.appendChild(codeToggle);
+        resultItem.appendChild(renderContainer);
         resultItem.appendChild(codeBlock);
+        
+        // Пытаемся отрендерить компонент
+        renderReactComponent(codeText, renderContainer);
     } else {
         // Обычный текст
         const textElement = document.createElement('div');
         textElement.className = 'result-text';
-        textElement.textContent = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
+        textElement.textContent = codeText;
         resultItem.appendChild(textElement);
     }
 
