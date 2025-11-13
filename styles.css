@@ -231,6 +231,29 @@ body {
     cursor: not-allowed;
 }
 
+/* Отладочная информация */
+.debug-info {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    background: rgba(0, 0, 0, 0.8);
+    color: #fff;
+    padding: 10px;
+    border-radius: 8px;
+    font-size: 11px;
+    z-index: 10000;
+    max-width: 300px;
+    font-family: monospace;
+}
+
+.debug-content {
+    line-height: 1.4;
+}
+
+.debug-content strong {
+    color: #4CAF50;
+}
+
 /* Адаптация для темной темы Telegram */
 @media (prefers-color-scheme: dark) {
     body {
