@@ -334,9 +334,6 @@ async function sendToV0(prompt) {
         if (loadingIndicator) {
             loadingIndicator.remove();
         }
-        if (timeInterval) {
-            clearInterval(timeInterval);
-        }
 
         if (!response.ok) {
             throw new Error(`Ошибка: ${response.status} ${response.statusText}`);
