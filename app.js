@@ -389,10 +389,42 @@ async function sendToV0(prompt) {
         resultContent.appendChild(loadingIndicator);
         resultContent.scrollTop = resultContent.scrollHeight;
 
-        // Используем быстрый Model API по умолчанию
-        // Platform API слишком медленный для реального использования
-        // TODO: Platform API можно использовать для сохранения проектов в будущем
-        console.log('Using fast Model API for generation');
+        // Определяем, является ли запрос итерацией (правкой)
+        // Для итераций используем Model API с контекстом предыдущего кода
+        // Это быстрее чем Platform API и дает контекст для правок
+        const history = loadHistory();
+        const isIteration = history.length > 0 && (
+            prompt.toLowerCase().includes('измени') ||
+            prompt.toLowerCase().includes('прав') ||
+            prompt.toLowerCase().includes('добавь') ||
+            prompt.toLowerCase().includes('убери') ||
+            prompt.toLowerCase().includes('сделай') ||
+            prompt.toLowerCase().includes('переделай') ||
+            prompt.toLowerCase().includes('change') ||
+            prompt.toLowerCase().includes('modify') ||
+            prompt.toLowerCase().includes('update') ||
+            prompt.toLowerCase().includes('fix') ||
+            prompt.toLowerCase().includes('edit')
+        );
+        
+        let enhancedPrompt = prompt;
+        
+        // Если это итерация - добавляем контекст предыдущего кода
+        if (isIteration && history.length > 0) {
+            const lastCode = history[0].code; // Последний сгенерированный код
+            if (lastCode && lastCode.length > 0) {
+                console.log('Detected iteration, adding context from previous code');
+                // Ограничиваем размер предыдущего кода (чтобы не превысить лимиты токенов)
+                const maxCodeLength = 5000; // ~5000 символов
+                const truncatedCode = lastCode.length > maxCodeLength 
+                    ? lastCode.substring(0, maxCodeLength) + '\n// ... (code truncated)'
+                    : lastCode;
+                
+                enhancedPrompt = `Here is the current code:\n\n\`\`\`tsx\n${truncatedCode}\n\`\`\`\n\nNow ${prompt}`;
+            }
+        }
+        
+        console.log('Using Model API for generation');
         
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 55000);
@@ -402,10 +434,10 @@ async function sendToV0(prompt) {
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ prompt }),
+            body: JSON.stringify({ prompt: enhancedPrompt }),
             signal: controller.signal
         });
-
+        
         clearTimeout(timeoutId);
 
         // Убираем индикатор загрузки
