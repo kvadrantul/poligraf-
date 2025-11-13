@@ -132,24 +132,45 @@ function savePromptAndMarkup(iframe, codeText, prompt) {
         // Сохраняем HTML разметку из iframe для использования как референс
         try {
             const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-            if (iframeDoc && iframeDoc.body) {
-                // Получаем HTML из body (упрощенная версия без скриптов)
-                const bodyHTML = iframeDoc.body.innerHTML;
+            if (iframeDoc) {
+                // Получаем только содержимое #root (без скриптов и других элементов)
+                const rootElement = iframeDoc.getElementById('root');
                 
-                // Проверяем, что HTML не пустой (не черный экран)
-                if (bodyHTML && bodyHTML.trim().length > 100) {
-                    const htmlKey = `poligraf-last-html-${userId}`;
-                    localStorage.setItem(htmlKey, bodyHTML);
-                    console.log('✅ Saved prompt, code and HTML to localStorage');
-                    console.log('  - Prompt:', prompt);
-                    console.log('  - Code length:', codeText.length);
-                    console.log('  - HTML length:', bodyHTML.length);
+                if (rootElement && rootElement.innerHTML) {
+                    const rootHTML = rootElement.innerHTML.trim();
+                    
+                    // Проверяем, что HTML не пустой и содержит контент
+                    if (rootHTML && rootHTML.length > 100) {
+                        // Проверяем, что это не просто пустой div или черный экран
+                        const hasContent = rootHTML.includes('<div') || 
+                                         rootHTML.includes('<span') || 
+                                         rootHTML.includes('<p') ||
+                                         rootHTML.includes('class=') ||
+                                         rootHTML.length > 500;
+                        
+                        if (hasContent) {
+                            const htmlKey = `poligraf-last-html-${userId}`;
+                            localStorage.setItem(htmlKey, rootHTML);
+                            console.log('✅ Saved prompt, code and HTML to localStorage');
+                            console.log('  - Prompt:', prompt);
+                            console.log('  - Code length:', codeText.length);
+                            console.log('  - HTML length:', rootHTML.length);
+                            console.log('  - HTML preview:', rootHTML.substring(0, 200));
+                        } else {
+                            console.warn('⚠️ HTML appears to be empty or invalid, not saving');
+                            console.warn('  - HTML content:', rootHTML.substring(0, 100));
+                        }
+                    } else {
+                        console.warn('⚠️ HTML too short or empty, not saving');
+                        console.warn('  - HTML length:', rootHTML.length);
+                    }
                 } else {
-                    console.warn('⚠️ HTML too short or empty, not saving');
+                    console.warn('⚠️ Root element not found in iframe');
                 }
             }
         } catch (htmlError) {
             console.warn('Could not save HTML reference:', htmlError);
+            console.error('Error details:', htmlError.message, htmlError.stack);
         }
     } catch (error) {
         console.warn('Error saving to localStorage:', error);
@@ -447,13 +468,21 @@ async function sendToV0(prompt) {
         
         // Если есть сохраненная разметка - используем её как референс
         if (lastHTML && lastHTML.length > 100) {
-            const maxHtmlLength = 10000;
-            const truncatedHTML = lastHTML.length > maxHtmlLength 
-                ? lastHTML.substring(0, maxHtmlLength) + '\n<!-- ... (HTML truncated) -->'
-                : lastHTML;
+            // Проверяем, что HTML валидный (не пустой div)
+            const isValidHTML = lastHTML.includes('<div') || 
+                               lastHTML.includes('<span') || 
+                               lastHTML.includes('<p') ||
+                               lastHTML.includes('class=') ||
+                               lastHTML.length > 500;
             
-            // Формируем промпт: референс (разметка) + новый промпт из поля
-            enhancedPrompt = `Here is a reference of the current page (HTML markup):
+            if (isValidHTML) {
+                const maxHtmlLength = 10000;
+                const truncatedHTML = lastHTML.length > maxHtmlLength 
+                    ? lastHTML.substring(0, maxHtmlLength) + '\n<!-- ... (HTML truncated) -->'
+                    : lastHTML;
+                
+                // Формируем промпт: референс (разметка) + новый промпт из поля
+                enhancedPrompt = `Here is a reference of the current page (HTML markup):
 
 \`\`\`html
 ${truncatedHTML}
@@ -462,12 +491,20 @@ ${truncatedHTML}
 I need to modify this page. Change request: "${prompt}"
 
 Please return the complete updated React/TSX component code that implements this change. Keep the same structure, layout, and styling. Only modify what was requested.`;
-            
-            console.log('✅ Using saved HTML as reference');
-            console.log('  - HTML length:', truncatedHTML.length);
-            console.log('  - Prompt:', prompt);
+                
+                console.log('✅ Using saved HTML as reference');
+                console.log('  - HTML length:', truncatedHTML.length);
+                console.log('  - HTML preview:', truncatedHTML.substring(0, 200));
+                console.log('  - Prompt:', prompt);
+            } else {
+                console.warn('⚠️ Saved HTML appears invalid, ignoring it');
+                console.warn('  - HTML content:', lastHTML.substring(0, 200));
+            }
         } else {
             console.log('📝 New generation (no saved markup)');
+            if (lastHTML) {
+                console.log('  - Saved HTML exists but too short:', lastHTML.length);
+            }
         }
 
         const controller = new AbortController();
@@ -569,13 +606,14 @@ async function handleSendMessage() {
     }
 }
 
-// Обработчик отправки комментария (Enter)
+// Обработчик отправки комментария (Enter - только с Shift для новой строки)
 if (commentInput) {
     commentInput.addEventListener('keydown', async (e) => {
-        if (e.key === 'Enter') {
+        if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             await handleSendMessage();
         }
+        // Shift+Enter позволяет добавить новую строку
     });
 } else {
     console.error('Cannot add event listener: commentInput is null');
