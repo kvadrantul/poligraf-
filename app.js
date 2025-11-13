@@ -118,10 +118,16 @@ function processImports(code) {
 function saveRenderedHTML(iframe, codeText) {
     try {
         const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-        if (!iframeDoc) return;
+        if (!iframeDoc) {
+            console.warn('Cannot access iframe document for saving');
+            return;
+        }
         
-        // Получаем HTML из iframe (включая стили)
+        // Получаем полный HTML из iframe (включая head со стилями и скриптами)
         const htmlContent = iframeDoc.documentElement.outerHTML;
+        
+        console.log('Saving HTML to localStorage, length:', htmlContent.length);
+        console.log('HTML preview:', htmlContent.substring(0, 500));
         
         // Сохраняем HTML разметку
         const htmlKey = `poligraf-last-html-${userId}`;
@@ -131,7 +137,7 @@ function saveRenderedHTML(iframe, codeText) {
         const codeKey = `poligraf-last-code-${userId}`;
         localStorage.setItem(codeKey, codeText);
         
-        console.log('Saved rendered HTML and code to localStorage');
+        console.log('✅ Saved rendered HTML and code to localStorage');
         updateDebugInfo();
     } catch (error) {
         console.warn('Error saving HTML to localStorage:', error);
@@ -330,8 +336,12 @@ function loadSavedHTML() {
         const htmlKey = `poligraf-last-html-${userId}`;
         const savedHTML = localStorage.getItem(htmlKey);
         
+        console.log('Loading saved HTML, key:', htmlKey);
+        console.log('Saved HTML exists:', !!savedHTML);
+        console.log('Saved HTML length:', savedHTML?.length || 0);
+        
         if (savedHTML && savedHTML.length > 0) {
-            console.log('Loading saved HTML from localStorage');
+            console.log('Saved HTML preview:', savedHTML.substring(0, 500));
             
             // Создаем контейнер для сохраненной HTML
             const resultItem = document.createElement('div');
@@ -351,44 +361,83 @@ function loadSavedHTML() {
             iframe.style.backgroundColor = 'transparent';
             
             iframe.onload = () => {
+                console.log('Iframe loaded with saved HTML');
                 const adjustHeight = () => {
                     try {
                         const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                        if (!iframeDoc) {
+                            console.warn('Cannot access iframe document');
+                            return;
+                        }
+                        
                         const iframeBody = iframeDoc.body;
                         const iframeRoot = iframeDoc.getElementById('root');
+                        
+                        console.log('Iframe body exists:', !!iframeBody);
+                        console.log('Iframe root exists:', !!iframeRoot);
+                        
                         if (iframeBody && iframeRoot) {
                             const height = Math.max(
                                 iframeBody.scrollHeight,
                                 iframeBody.offsetHeight,
                                 iframeRoot.scrollHeight,
-                                iframeRoot.offsetHeight
+                                iframeRoot.offsetHeight,
+                                400 // Минимальная высота
                             );
                             iframe.style.height = height + 'px';
+                            console.log('Iframe height adjusted to:', height);
+                        } else {
+                            // Если root не найден, используем высоту body
+                            if (iframeBody) {
+                                const height = Math.max(iframeBody.scrollHeight, iframeBody.offsetHeight, 400);
+                                iframe.style.height = height + 'px';
+                                console.log('Iframe height adjusted (body only) to:', height);
+                            }
                         }
                     } catch (e) {
-                        // Игнорируем ошибки
+                        console.error('Error adjusting iframe height:', e);
                     }
                 };
                 
                 setTimeout(adjustHeight, 100);
                 setTimeout(adjustHeight, 500);
                 setTimeout(adjustHeight, 1000);
+                setTimeout(adjustHeight, 2000);
             };
             
             // Вставляем сохраненную HTML в iframe через srcdoc
-            iframe.srcdoc = savedHTML;
+            try {
+                iframe.srcdoc = savedHTML;
+                console.log('Set iframe srcdoc, length:', savedHTML.length);
+            } catch (srcdocError) {
+                console.error('Error setting srcdoc:', srcdocError);
+                // Fallback: используем write
+                iframe.onload = () => {
+                    try {
+                        const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                        iframeDoc.open();
+                        iframeDoc.write(savedHTML);
+                        iframeDoc.close();
+                        console.log('Wrote HTML to iframe via write()');
+                    } catch (writeError) {
+                        console.error('Error writing to iframe:', writeError);
+                    }
+                };
+                iframe.src = 'about:blank';
+            }
             
             renderContainer.appendChild(iframe);
             resultItem.appendChild(renderContainer);
             resultContent.appendChild(resultItem);
             
-            console.log('✅ Saved HTML loaded and displayed');
+            console.log('✅ Saved HTML container created and appended');
         } else {
             console.log('No saved HTML found in localStorage');
             resultContent.innerHTML = '';
         }
     } catch (error) {
         console.error('Error loading saved HTML:', error);
+        console.error('Error details:', error.message, error.stack);
         resultContent.innerHTML = '';
     }
 }
