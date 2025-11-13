@@ -35,50 +35,74 @@ export default async function handler(req, res) {
         }
 
         // Отправляем запрос к v0.dev API
-        // Попробуем несколько возможных endpoints
+        // Попробуем несколько возможных endpoints и форматов
         const endpoints = [
-            'https://v0.dev/api/generate',
-            'https://api.v0.dev/api/generate',
-            'https://v0.dev/api/v1/generate',
+            {
+                url: 'https://v0.dev/api/v1/prompt',
+                body: { prompt: prompt }
+            },
+            {
+                url: 'https://api.v0.dev/v1/prompt',
+                body: { prompt: prompt }
+            },
+            {
+                url: 'https://v0.dev/api/generate',
+                body: { prompt: prompt }
+            },
+            {
+                url: 'https://api.v0.dev/api/generate',
+                body: { prompt: prompt }
+            },
         ];
 
         let v0Response = null;
         let lastError = null;
 
         // Пробуем каждый endpoint
-        for (const endpoint of endpoints) {
+        for (const endpointConfig of endpoints) {
             try {
-                v0Response = await fetch(endpoint, {
+                console.log(`Trying endpoint: ${endpointConfig.url}`);
+                
+                v0Response = await fetch(endpointConfig.url, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${apiKey}`,
+                        'User-Agent': 'Poligraf-Telegram-MiniApp/1.0',
                     },
-                    body: JSON.stringify({
-                        prompt: prompt,
-                    }),
+                    body: JSON.stringify(endpointConfig.body),
                 });
 
+                console.log(`Response status: ${v0Response.status} for ${endpointConfig.url}`);
+
                 if (v0Response.ok) {
+                    console.log(`Success with endpoint: ${endpointConfig.url}`);
                     break; // Успешный запрос
                 } else {
                     const errorText = await v0Response.text();
-                    lastError = { endpoint, status: v0Response.status, error: errorText };
-                    console.log(`Endpoint ${endpoint} failed:`, lastError);
+                    lastError = { 
+                        endpoint: endpointConfig.url, 
+                        status: v0Response.status, 
+                        statusText: v0Response.statusText,
+                        error: errorText 
+                    };
+                    console.error(`Endpoint ${endpointConfig.url} failed:`, lastError);
                 }
             } catch (err) {
-                lastError = { endpoint, error: err.message };
-                console.log(`Endpoint ${endpoint} error:`, err.message);
+                lastError = { endpoint: endpointConfig.url, error: err.message };
+                console.error(`Endpoint ${endpointConfig.url} error:`, err.message);
                 continue;
             }
         }
 
         if (!v0Response || !v0Response.ok) {
-            const errorText = lastError ? JSON.stringify(lastError) : 'Unknown error';
-            console.error('v0.dev API error:', errorText);
+            const errorDetails = lastError || { message: 'All endpoints failed' };
+            console.error('v0.dev API error:', errorDetails);
             return res.status(v0Response?.status || 500).json({ 
-                error: `v0.dev API error`,
-                details: lastError
+                error: `v0.dev API error: ${v0Response?.statusText || 'Unknown error'}`,
+                status: v0Response?.status,
+                details: errorDetails,
+                message: 'Проверьте правильность API ключа и endpoint. Возможно, v0.dev использует другой формат API.'
             });
         }
 
