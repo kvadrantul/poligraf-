@@ -639,7 +639,7 @@ async function sendToV0(prompt) {
                             console.log('Code saved to project successfully:', saveData);
                         } else {
                             const errorText = await saveResponse.text();
-                            console.warn('Failed to save code to project:', response.status, errorText);
+                            console.warn('Failed to save code to project:', saveResponse.status, errorText);
                         }
                     } catch (saveError) {
                         console.warn('Error saving code to project:', saveError);
