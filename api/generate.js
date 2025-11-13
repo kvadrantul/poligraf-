@@ -201,7 +201,7 @@ export default async function handler(req, res) {
                     messages: [
                         {
                             role: 'system',
-                            content: 'You are an expert React/Next.js developer. Generate clean, modern UI components. Always return valid React/TSX code. Return only the code, no explanations or thinking process.'
+                            content: 'Generate clean, modern React/TSX components. Always return valid React/TSX code. Return only the code, no explanations or thinking process.'
                         },
                         {
                             role: 'user',

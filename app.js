@@ -99,17 +99,30 @@ function processImports(code) {
     return processedCode;
 }
 
-// Функция для сохранения кода в localStorage
-// Сохраняем только исходный код, HTML не сохраняем (рендерим заново при загрузке)
+// Функция для сохранения кода и HTML разметки в localStorage
 function saveRenderedHTML(iframe, codeText) {
     try {
-        // Сохраняем только исходный код для использования в промптах и для рендеринга
+        // Сохраняем исходный код для рендеринга
         const codeKey = `poligraf-last-code-${userId}`;
         localStorage.setItem(codeKey, codeText);
         
+        // Сохраняем HTML разметку из iframe для использования как референс в промптах
+        try {
+            const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+            if (iframeDoc && iframeDoc.body) {
+                // Получаем HTML из body (упрощенная версия без скриптов)
+                const bodyHTML = iframeDoc.body.innerHTML;
+                const htmlKey = `poligraf-last-html-${userId}`;
+                localStorage.setItem(htmlKey, bodyHTML);
+                console.log('✅ Saved HTML reference, length:', bodyHTML.length);
+            }
+        } catch (htmlError) {
+            console.warn('Could not save HTML reference:', htmlError);
+        }
+        
         console.log('✅ Saved code to localStorage, length:', codeText.length);
     } catch (error) {
-        console.warn('Error saving code to localStorage:', error);
+        console.warn('Error saving to localStorage:', error);
     }
 }
 
@@ -385,26 +398,50 @@ async function sendToV0(prompt) {
             console.log('  - Is edit detected:', isEdit);
             
             if (isEdit) {
-                // Используем полный код как основу (увеличиваем лимит для лучшего контекста)
-                const maxCodeLength = 8000;
-                const truncatedCode = lastCode.length > maxCodeLength 
-                    ? lastCode.substring(0, maxCodeLength) + '\n// ... (code truncated)'
-                    : lastCode;
+                // Пытаемся использовать HTML разметку как референс (более понятно для модели)
+                const htmlKey = `poligraf-last-html-${userId}`;
+                const lastHTML = localStorage.getItem(htmlKey);
                 
-                enhancedPrompt = `You are an expert React/Next.js developer. I have an existing React component that I need to modify. 
+                if (lastHTML && lastHTML.length > 0) {
+                    // Используем HTML как визуальный референс
+                    const maxHtmlLength = 10000;
+                    const truncatedHTML = lastHTML.length > maxHtmlLength 
+                        ? lastHTML.substring(0, maxHtmlLength) + '\n<!-- ... (HTML truncated) -->'
+                        : lastHTML;
+                    
+                    enhancedPrompt = `Here is a reference of the current page (HTML markup):
 
-IMPORTANT: Use the existing code below as the BASE/FOUNDATION. Keep the same structure, layout, and styling approach. Only make the specific changes requested by the user.
+\`\`\`html
+${truncatedHTML}
+\`\`\`
 
-Existing component code:
+I need to modify this page. Change request: "${prompt}"
+
+Please return the complete updated React/TSX component code that implements this change. Keep the same structure, layout, and styling. Only modify what was requested.`;
+                    
+                    console.log('✅ Using HTML reference for edit');
+                    console.log('HTML length:', truncatedHTML.length);
+                } else {
+                    // Если HTML нет, используем код, но с другой структурой промпта
+                    const maxCodeLength = 8000;
+                    const truncatedCode = lastCode.length > maxCodeLength 
+                        ? lastCode.substring(0, maxCodeLength) + '\n// ... (code truncated)'
+                        : lastCode;
+                    
+                    enhancedPrompt = `Here is a reference of the current React component code:
+
 \`\`\`tsx
 ${truncatedCode}
 \`\`\`
 
-User's modification request: "${prompt}"
+I need to modify this component. Change request: "${prompt}"
 
-Please update ONLY what the user requested, keeping everything else the same. Return the COMPLETE updated component code with all the original structure preserved.`;
-                console.log('✅ Using enhanced prompt with existing code as base for edit');
-                console.log('Code length:', truncatedCode.length);
+Please return the complete updated React/TSX component code. Keep the same structure, layout, and styling. Only modify what was requested.`;
+                    
+                    console.log('✅ Using code reference for edit (no HTML available)');
+                    console.log('Code length:', truncatedCode.length);
+                }
+                
                 console.log('User request:', prompt);
                 console.log('Enhanced prompt length:', enhancedPrompt.length);
             }
