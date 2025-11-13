@@ -439,11 +439,9 @@ async function sendToV0(prompt) {
             console.error('resultArea not found for loading overlay');
         }
 
-        // Новая логика: всегда используем сохраненную разметку как референс, если она есть
+        // Упрощенная логика: если есть сохраненная разметка - используем как референс
         const htmlKey = `poligraf-last-html-${userId}`;
         const lastHTML = localStorage.getItem(htmlKey);
-        const savedPromptKey = `poligraf-last-prompt-${userId}`;
-        const savedPrompt = localStorage.getItem(savedPromptKey);
         
         let enhancedPrompt = prompt;
         
@@ -454,7 +452,7 @@ async function sendToV0(prompt) {
                 ? lastHTML.substring(0, maxHtmlLength) + '\n<!-- ... (HTML truncated) -->'
                 : lastHTML;
             
-            // Формируем промпт: референс (разметка) + новый текст из поля
+            // Формируем промпт: референс (разметка) + новый промпт из поля
             enhancedPrompt = `Here is a reference of the current page (HTML markup):
 
 \`\`\`html
@@ -467,7 +465,7 @@ Please return the complete updated React/TSX component code that implements this
             
             console.log('✅ Using saved HTML as reference');
             console.log('  - HTML length:', truncatedHTML.length);
-            console.log('  - New prompt text:', prompt);
+            console.log('  - Prompt:', prompt);
         } else {
             console.log('📝 New generation (no saved markup)');
         }
