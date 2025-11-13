@@ -71,8 +71,8 @@ function updateDebugInfo() {
         
         debugUserId.textContent = `Current userId: ${userId}`;
         debugStoredUserId.textContent = `Stored userId: ${storedUserIdFromLS || 'NOT FOUND'}`;
-        debugProjectKey.textContent = `Last HTML: ${hasHtml ? 'EXISTS' : 'NOT FOUND'}`;
-        debugProjectData.textContent = `Last Code: ${hasCode ? 'EXISTS' : 'NOT FOUND'}`;
+        debugProjectKey.textContent = `Last Code: ${hasCode ? 'EXISTS (' + (localStorage.getItem(`poligraf-last-code-${userId}`)?.length || 0) + ' chars)' : 'NOT FOUND'}`;
+        debugProjectData.textContent = `Code will be re-rendered on load`;
         
         debugInfo.style.display = 'block';
     }
@@ -114,33 +114,18 @@ function processImports(code) {
     return processedCode;
 }
 
-// Функция для сохранения HTML разметки из iframe в localStorage
+// Функция для сохранения кода в localStorage
+// Сохраняем только исходный код, HTML не сохраняем (рендерим заново при загрузке)
 function saveRenderedHTML(iframe, codeText) {
     try {
-        const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-        if (!iframeDoc) {
-            console.warn('Cannot access iframe document for saving');
-            return;
-        }
-        
-        // Получаем полный HTML из iframe (включая head со стилями и скриптами)
-        const htmlContent = iframeDoc.documentElement.outerHTML;
-        
-        console.log('Saving HTML to localStorage, length:', htmlContent.length);
-        console.log('HTML preview:', htmlContent.substring(0, 500));
-        
-        // Сохраняем HTML разметку
-        const htmlKey = `poligraf-last-html-${userId}`;
-        localStorage.setItem(htmlKey, htmlContent);
-        
-        // Сохраняем исходный код для использования в промптах
+        // Сохраняем только исходный код для использования в промптах и для рендеринга
         const codeKey = `poligraf-last-code-${userId}`;
         localStorage.setItem(codeKey, codeText);
         
-        console.log('✅ Saved rendered HTML and code to localStorage');
+        console.log('✅ Saved code to localStorage, length:', codeText.length);
         updateDebugInfo();
     } catch (error) {
-        console.warn('Error saving HTML to localStorage:', error);
+        console.warn('Error saving code to localStorage:', error);
     }
 }
 
@@ -330,105 +315,30 @@ function displayResult(result) {
     resultContent.scrollTop = resultContent.scrollHeight;
 }
 
-// Функция для загрузки сохраненной HTML разметки
+// Функция для загрузки сохраненного кода и его рендеринга
 function loadSavedHTML() {
     try {
-        const htmlKey = `poligraf-last-html-${userId}`;
-        const savedHTML = localStorage.getItem(htmlKey);
+        const codeKey = `poligraf-last-code-${userId}`;
+        const savedCode = localStorage.getItem(codeKey);
         
-        console.log('Loading saved HTML, key:', htmlKey);
-        console.log('Saved HTML exists:', !!savedHTML);
-        console.log('Saved HTML length:', savedHTML?.length || 0);
+        console.log('Loading saved code, key:', codeKey);
+        console.log('Saved code exists:', !!savedCode);
+        console.log('Saved code length:', savedCode?.length || 0);
         
-        if (savedHTML && savedHTML.length > 0) {
-            console.log('Saved HTML preview:', savedHTML.substring(0, 500));
+        if (savedCode && savedCode.length > 0) {
+            console.log('Saved code preview:', savedCode.substring(0, 200));
             
-            // Создаем контейнер для сохраненной HTML
-            const resultItem = document.createElement('div');
-            resultItem.className = 'result-item';
+            // Рендерим код заново (как при первой генерации)
+            // Это гарантирует, что все импорты и зависимости будут правильными
+            displayResult(savedCode);
             
-            const renderContainer = document.createElement('div');
-            renderContainer.className = 'react-render-container';
-            
-            // Создаем iframe и вставляем сохраненную HTML
-            const iframe = document.createElement('iframe');
-            iframe.className = 'react-iframe';
-            iframe.style.width = '100%';
-            iframe.style.height = '100%';
-            iframe.style.border = 'none';
-            iframe.style.margin = '0';
-            iframe.style.padding = '0';
-            iframe.style.backgroundColor = 'transparent';
-            
-            // Вставляем сохраненную HTML в iframe
-            // Используем write() вместо srcdoc для большей совместимости
-            iframe.onload = () => {
-                try {
-                    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-                    if (!iframeDoc) {
-                        console.error('Cannot access iframe document');
-                        return;
-                    }
-                    
-                    console.log('Writing HTML to iframe via write(), length:', savedHTML.length);
-                    iframeDoc.open();
-                    iframeDoc.write(savedHTML);
-                    iframeDoc.close();
-                    console.log('✅ HTML written to iframe');
-                    
-                    // После записи HTML, настраиваем высоту
-                    setTimeout(() => {
-                        const adjustHeight = () => {
-                            try {
-                                const iframeBody = iframeDoc.body;
-                                const iframeRoot = iframeDoc.getElementById('root');
-                                
-                                console.log('Adjusting height - body exists:', !!iframeBody, 'root exists:', !!iframeRoot);
-                                
-                                if (iframeBody && iframeRoot) {
-                                    const height = Math.max(
-                                        iframeBody.scrollHeight,
-                                        iframeBody.offsetHeight,
-                                        iframeRoot.scrollHeight,
-                                        iframeRoot.offsetHeight,
-                                        400
-                                    );
-                                    iframe.style.height = height + 'px';
-                                    console.log('Iframe height adjusted to:', height);
-                                } else if (iframeBody) {
-                                    const height = Math.max(iframeBody.scrollHeight, iframeBody.offsetHeight, 400);
-                                    iframe.style.height = height + 'px';
-                                    console.log('Iframe height adjusted (body only) to:', height);
-                                }
-                            } catch (e) {
-                                console.error('Error adjusting iframe height:', e);
-                            }
-                        };
-                        
-                        adjustHeight();
-                        setTimeout(adjustHeight, 500);
-                        setTimeout(adjustHeight, 1000);
-                        setTimeout(adjustHeight, 2000);
-                    }, 100);
-                } catch (writeError) {
-                    console.error('Error writing to iframe:', writeError);
-                }
-            };
-            
-            // Загружаем пустую страницу, чтобы iframe был готов для записи
-            iframe.src = 'about:blank';
-            
-            renderContainer.appendChild(iframe);
-            resultItem.appendChild(renderContainer);
-            resultContent.appendChild(resultItem);
-            
-            console.log('✅ Saved HTML container created and appended');
+            console.log('✅ Saved code loaded and rendered');
         } else {
-            console.log('No saved HTML found in localStorage');
+            console.log('No saved code found in localStorage');
             resultContent.innerHTML = '';
         }
     } catch (error) {
-        console.error('Error loading saved HTML:', error);
+        console.error('Error loading saved code:', error);
         console.error('Error details:', error.message, error.stack);
         resultContent.innerHTML = '';
     }
