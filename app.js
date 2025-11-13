@@ -9,6 +9,19 @@ tg.expand();
 const resultContent = document.getElementById('resultContent');
 const commentInput = document.getElementById('commentInput');
 const backButton = document.getElementById('backButton');
+const sendButton = document.getElementById('sendButton');
+const resultArea = document.querySelector('.result-area');
+
+// Проверяем, что элементы найдены
+if (!commentInput) {
+    console.error('commentInput not found!');
+}
+if (!backButton) {
+    console.error('backButton not found!');
+}
+if (!resultContent) {
+    console.error('resultContent not found!');
+}
 
 // Конфигурация API
 const API_BASE = 'https://poligraf-black.vercel.app';
@@ -353,18 +366,25 @@ async function sendToV0(prompt) {
     let loadingSpinner = null;
 
     try {
-        // Создаем overlay с пульсацией для затемнения iframe
-        loadingOverlay = document.createElement('div');
-        loadingOverlay.className = 'loading-overlay';
-        document.body.appendChild(loadingOverlay);
-        
-        // Создаем маленький белый спиннер в правом нижнем углу
-        loadingSpinner = document.createElement('div');
-        loadingSpinner.className = 'loading-spinner-small';
-        const spinnerSmall = document.createElement('div');
-        spinnerSmall.className = 'spinner-small';
-        loadingSpinner.appendChild(spinnerSmall);
-        document.body.appendChild(loadingSpinner);
+        // Создаем overlay с пульсацией для затемнения iframe (поверх result-area)
+        if (resultArea) {
+            // Делаем result-area относительно позиционированной для overlay
+            resultArea.style.position = 'relative';
+            
+            loadingOverlay = document.createElement('div');
+            loadingOverlay.className = 'loading-overlay';
+            resultArea.appendChild(loadingOverlay);
+            
+            // Создаем маленький белый спиннер в правом нижнем углу (внутри overlay)
+            loadingSpinner = document.createElement('div');
+            loadingSpinner.className = 'loading-spinner-small';
+            const spinnerSmall = document.createElement('div');
+            spinnerSmall.className = 'spinner-small';
+            loadingSpinner.appendChild(spinnerSmall);
+            loadingOverlay.appendChild(loadingSpinner);
+        } else {
+            console.error('resultArea not found for loading overlay');
+        }
 
         // Проверяем, есть ли сохраненный код для контекста (правка)
         const codeKey = `poligraf-last-code-${userId}`;
@@ -488,25 +508,49 @@ Please update ONLY what the user requested, keeping everything else the same. Re
     }
 }
 
-// Обработчик отправки комментария (Enter)
-commentInput.addEventListener('keydown', async (e) => {
-    if (e.key === 'Enter') {
-        e.preventDefault();
-        const comment = commentInput.value.trim();
-        
-        if (comment) {
-            await sendToV0(comment);
-            commentInput.value = '';
-        } else {
-            tg.HapticFeedback.impactOccurred('light');
-        }
+// Функция для отправки сообщения
+async function handleSendMessage() {
+    if (!commentInput) return;
+    
+    const comment = commentInput.value.trim();
+    
+    if (comment) {
+        await sendToV0(comment);
+        commentInput.value = '';
+    } else {
+        tg.HapticFeedback.impactOccurred('light');
     }
-});
+}
+
+// Обработчик отправки комментария (Enter)
+if (commentInput) {
+    commentInput.addEventListener('keydown', async (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            await handleSendMessage();
+        }
+    });
+} else {
+    console.error('Cannot add event listener: commentInput is null');
+}
+
+// Обработчик кнопки отправки
+if (sendButton) {
+    sendButton.addEventListener('click', async () => {
+        await handleSendMessage();
+    });
+} else {
+    console.error('Cannot add event listener: sendButton is null');
+}
 
 // Обработчик кнопки "Назад"
-backButton.addEventListener('click', () => {
-    tg.close();
-});
+if (backButton) {
+    backButton.addEventListener('click', () => {
+        tg.close();
+    });
+} else {
+    console.error('Cannot add event listener: backButton is null');
+}
 
 // Загружаем сохраненную HTML при старте
 loadSavedHTML();
