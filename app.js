@@ -540,7 +540,7 @@ async function sendToV0(prompt) {
             }
         } else {
             // Новая генерация - используем быстрый Model API
-            console.log('Using Model API for new generation');
+            console.log('Using Model API for new generation, prompt:', prompt.substring(0, 100));
             
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 55000);
@@ -617,8 +617,8 @@ async function sendToV0(prompt) {
                 }
                 
                 // Сохраняем сгенерированный код в проект
-                if (projectId && chatId && generatedCode) {
-                    console.log('Saving generated code to project:', projectId);
+                if (projectId && chatId && generatedCode && generatedCode.length > 50) {
+                    console.log('Saving generated code to project:', projectId, 'code length:', generatedCode.length);
                     try {
                         // Используем простой формат - просто отправляем код как сообщение пользователя
                         // Это сохранит его в истории проекта без ожидания ответа AI
@@ -635,14 +635,22 @@ async function sendToV0(prompt) {
                         });
                         
                         if (saveResponse.ok) {
-                            console.log('Code saved to project successfully');
+                            const saveData = await saveResponse.json();
+                            console.log('Code saved to project successfully:', saveData);
                         } else {
-                            console.warn('Failed to save code to project:', await saveResponse.text());
+                            const errorText = await saveResponse.text();
+                            console.warn('Failed to save code to project:', response.status, errorText);
                         }
                     } catch (saveError) {
                         console.warn('Error saving code to project:', saveError);
                         // Не критично - код уже отображен, просто не сохранится в проект
                     }
+                } else {
+                    console.log('Skipping save - missing data:', { 
+                        hasProjectId: !!projectId, 
+                        hasChatId: !!chatId, 
+                        codeLength: generatedCode?.length || 0 
+                    });
                 }
             } catch (error) {
                 console.warn('Error in project save:', error);

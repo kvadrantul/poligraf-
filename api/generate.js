@@ -155,7 +155,23 @@ export default async function handler(req, res) {
         } else {
             // Используем v0.dev API
             console.log('Using v0.dev API');
+            console.log('Prompt length:', prompt.length);
+            console.log('Prompt preview:', prompt.substring(0, 200));
+            
             const v0ApiUrl = 'https://api.v0.dev/v1/chat/completions';
+
+            // Улучшаем промпт - добавляем контекст для генерации React компонентов
+            let enhancedPrompt = prompt;
+            
+            // Если промпт короткий или не содержит явного запроса на компонент
+            if (prompt.length < 50 || (!prompt.toLowerCase().includes('component') && 
+                !prompt.toLowerCase().includes('кнопк') && 
+                !prompt.toLowerCase().includes('форма') &&
+                !prompt.toLowerCase().includes('страниц') &&
+                !prompt.toLowerCase().includes('ui') &&
+                !prompt.toLowerCase().includes('интерфейс'))) {
+                enhancedPrompt = `Generate a React component for: ${prompt}\n\nPlease return only the React/TSX code, no explanations.`;
+            }
 
             apiResponse = await fetch(v0ApiUrl, {
                 method: 'POST',
@@ -167,8 +183,12 @@ export default async function handler(req, res) {
                     model: 'v0-1.5-md',
                     messages: [
                         {
+                            role: 'system',
+                            content: 'You are an expert React/Next.js developer. Generate clean, modern UI components. Always return valid React/TSX code. Return only the code, no explanations or thinking process.'
+                        },
+                        {
                             role: 'user',
-                            content: prompt
+                            content: enhancedPrompt
                         }
                     ],
                     stream: false,

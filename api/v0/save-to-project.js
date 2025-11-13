@@ -42,11 +42,9 @@ export default async function handler(req, res) {
             ? code.substring(0, maxCodeLength) + '\n// ... (code truncated for saving)'
             : code;
         
-        // Пробуем более простой формат сообщения
-        // Возможно проблема в том, что мы просим "сохранить", а нужно просто отправить код
-        const saveMessage = codeToSave.length < 500 
-            ? `Here is the code:\n\n\`\`\`tsx\n${codeToSave}\n\`\`\``
-            : `Code (${codeToSave.length} chars):\n\n\`\`\`tsx\n${codeToSave}\n\`\`\``;
+            // Отправляем код как сообщение пользователя с просьбой сохранить
+            // Формат: просто код в markdown блоке, без лишних слов
+            const saveMessage = `\`\`\`tsx\n${codeToSave}\n\`\`\``;
         
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 секунд максимум
