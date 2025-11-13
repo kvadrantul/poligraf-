@@ -12,7 +12,16 @@ const sendButton = document.getElementById('sendButton');
 
 // Конфигурация API (будет использоваться backend endpoint для безопасности)
 // Backend развернут на Vercel
-const API_ENDPOINT = 'https://poligraf-black.vercel.app/api/generate';
+const API_BASE = 'https://poligraf-black.vercel.app';
+const API_GENERATE = `${API_BASE}/api/generate`; // Старый endpoint (Model API)
+const API_CREATE_PROJECT = `${API_BASE}/api/v0/create-project`; // Platform API
+const API_ITERATE = `${API_BASE}/api/v0/iterate`; // Platform API
+
+// Получаем Telegram User ID
+const userId = tg.initDataUnsafe?.user?.id || `user_${Date.now()}`;
+
+// Максимальное количество проектов (лимит для защиты)
+const MAX_PROJECTS = 5;
 
 // История результатов (для отображения всех результатов в одном проекте)
 let resultsHistory = [];
@@ -45,6 +54,60 @@ function loadHistory() {
     } catch (error) {
         console.error('Ошибка загрузки истории:', error);
         return [];
+    }
+}
+
+// Функция для получения или создания проекта
+async function getOrCreateProject() {
+    try {
+        // Проверяем localStorage
+        const stored = localStorage.getItem(`v0-project-${userId}`);
+        if (stored) {
+            const { projectId, chatId } = JSON.parse(stored);
+            if (projectId && chatId) {
+                console.log('Using existing project:', projectId);
+                return { projectId, chatId };
+            }
+        }
+
+        // Проверяем количество созданных проектов
+        const projectsCount = parseInt(localStorage.getItem('v0-projects-count') || '0');
+        if (projectsCount >= MAX_PROJECTS) {
+            throw new Error(`Достигнут лимит проектов (${MAX_PROJECTS}). Пожалуйста, используйте существующий проект или очистите localStorage.`);
+        }
+
+        // Создаем новый проект
+        console.log('Creating new project for user:', userId);
+        const response = await fetch(API_CREATE_PROJECT, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ userId }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to create project');
+        }
+
+        const data = await response.json();
+        const { projectId, chatId } = data;
+
+        if (!projectId || !chatId) {
+            throw new Error('Project or chat ID not received');
+        }
+
+        // Сохраняем в localStorage
+        localStorage.setItem(`v0-project-${userId}`, JSON.stringify({ projectId, chatId }));
+        localStorage.setItem('v0-projects-count', String(projectsCount + 1));
+
+        console.log('Project created:', projectId);
+        return { projectId, chatId };
+
+    } catch (error) {
+        console.error('Error getting/creating project:', error);
+        throw error;
     }
 }
 
@@ -302,7 +365,7 @@ function displayResult(result) {
     resultContent.scrollTop = resultContent.scrollHeight;
 }
 
-// Функция для отправки запроса к v0.dev API
+// Функция для отправки запроса к v0.dev Platform API (итерация)
 async function sendToV0(prompt) {
     let loadingIndicator = null;
 
@@ -323,18 +386,21 @@ async function sendToV0(prompt) {
         resultContent.appendChild(loadingIndicator);
         resultContent.scrollTop = resultContent.scrollHeight;
 
-        // Таймер больше не нужен
+        // Получаем или создаем проект
+        const { projectId, chatId } = await getOrCreateProject();
 
-        // Отправляем запрос к backend с увеличенным таймаутом
+        // Отправляем запрос к backend для итерации
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 55000); // 55 секунд (чуть меньше 60)
+        const timeoutId = setTimeout(() => controller.abort(), 55000);
 
-        const response = await fetch(API_ENDPOINT, {
+        const response = await fetch(API_ITERATE, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
+                projectId: projectId,
+                chatId: chatId,
                 prompt: prompt
             }),
             signal: controller.signal
@@ -348,7 +414,8 @@ async function sendToV0(prompt) {
         }
 
         if (!response.ok) {
-            throw new Error(`Ошибка: ${response.status} ${response.statusText}`);
+            const errorData = await response.json();
+            throw new Error(errorData.error || `Ошибка: ${response.status} ${response.statusText}`);
         }
 
         const data = await response.json();
