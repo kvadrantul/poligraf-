@@ -43,23 +43,51 @@ if (tg.initDataUnsafe?.user?.id) {
             localStorage.setItem('poligraf-user-id', userId);
         }
     } catch (e) {
-        // Если не получилось - используем сохраненный или создаем новый
-        userId = storedUserId || `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        // Если не получилось - используем сохраненный или создаем новый БЕЗ рандома
+        userId = storedUserId || `user_${Date.now()}`;
         localStorage.setItem('poligraf-user-id', userId);
     }
 } else {
-    // Нет Telegram - используем сохраненный ID или создаем новый постоянный
+    // Нет Telegram - используем сохраненный ID или создаем новый постоянный БЕЗ рандома
     if (storedUserId) {
         userId = storedUserId;
     } else {
-        // Создаем новый постоянный ID для тестирования
-        userId = `test_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        // Создаем новый постоянный ID для тестирования БЕЗ рандома
+        userId = `test_${Date.now()}`;
         localStorage.setItem('poligraf-user-id', userId);
         console.log('Created new test userId (no Telegram):', userId);
     }
 }
 
 console.log('Initialized userId:', userId);
+console.log('Stored userId from localStorage:', storedUserId);
+console.log('All localStorage keys:', Object.keys(localStorage).filter(k => k.startsWith('poligraf') || k.startsWith('v0-project')));
+
+// Функция для обновления отладочной информации на экране
+function updateDebugInfo() {
+    const debugInfo = document.getElementById('debugInfo');
+    const debugUserId = document.getElementById('debugUserId');
+    const debugStoredUserId = document.getElementById('debugStoredUserId');
+    const debugProjectKey = document.getElementById('debugProjectKey');
+    const debugProjectData = document.getElementById('debugProjectData');
+    
+    if (debugInfo && debugUserId && debugStoredUserId && debugProjectKey && debugProjectData) {
+        const storedUserIdFromLS = localStorage.getItem('poligraf-user-id');
+        const projectKey = `v0-project-${userId}`;
+        const projectData = localStorage.getItem(projectKey);
+        
+        debugUserId.textContent = `Current userId: ${userId}`;
+        debugStoredUserId.textContent = `Stored userId (localStorage): ${storedUserIdFromLS || 'NOT FOUND'}`;
+        debugProjectKey.textContent = `Project key: ${projectKey}`;
+        debugProjectData.textContent = `Project data: ${projectData ? JSON.parse(projectData).projectId + ' / ' + JSON.parse(projectData).chatId : 'NOT FOUND'}`;
+        
+        // Показываем блок отладки
+        debugInfo.style.display = 'block';
+    }
+}
+
+// Обновляем отладочную информацию при старте
+updateDebugInfo();
 
 // Максимальное количество проектов (лимит для защиты)
 // Согласно документации v0.dev: 100 проектов на аккаунт
@@ -456,11 +484,24 @@ async function sendToV0(prompt) {
             // Получаем или создаем проект
             let projectId, chatId;
             try {
-                const stored = localStorage.getItem(`v0-project-${userId}`);
+                const projectKey = `v0-project-${userId}`;
+                console.log('Looking for project with key:', projectKey);
+                const stored = localStorage.getItem(projectKey);
+                console.log('Project data from localStorage:', stored);
+                
+                // Обновляем отладочную информацию
+                updateDebugInfo();
+                
                 if (stored) {
                     const parsed = JSON.parse(stored);
                     projectId = parsed.projectId;
                     chatId = parsed.chatId;
+                    console.log('Found project:', { projectId, chatId });
+                } else {
+                    console.log('Project not found in localStorage, key:', projectKey);
+                    // Проверяем все ключи проектов
+                    const allProjectKeys = Object.keys(localStorage).filter(k => k.startsWith('v0-project-'));
+                    console.log('All project keys in localStorage:', allProjectKeys);
                 }
                 
                 // Если проекта нет - создаем
@@ -480,9 +521,12 @@ async function sendToV0(prompt) {
                         chatId = projectData.chatId;
                         
                         if (projectId && chatId) {
-                            localStorage.setItem(`v0-project-${userId}`, JSON.stringify({ projectId, chatId }));
+                            const projectKey = `v0-project-${userId}`;
+                            localStorage.setItem(projectKey, JSON.stringify({ projectId, chatId }));
                             const projectsCount = parseInt(localStorage.getItem('v0-projects-count') || '0');
                             localStorage.setItem('v0-projects-count', String(projectsCount + 1));
+                            console.log('Project saved to localStorage with key:', projectKey);
+                            updateDebugInfo();
                         }
                     }
                 }
@@ -580,11 +624,17 @@ async function sendToV0(prompt) {
                 let projectId, chatId;
                 const stored = localStorage.getItem(`v0-project-${userId}`);
                 
+                const projectKey = `v0-project-${userId}`;
+                console.log('Saving code: Looking for project with key:', projectKey);
+                const stored = localStorage.getItem(projectKey);
+                console.log('Saving code: Project data from localStorage:', stored);
+                
                 if (stored) {
                     // Проект уже есть - используем его
                     const projectData = JSON.parse(stored);
                     projectId = projectData.projectId;
                     chatId = projectData.chatId;
+                    console.log('Saving code: Found project:', { projectId, chatId });
                 } else {
                     // Создаем проект если его нет
                     console.log('Creating project for first-time user');

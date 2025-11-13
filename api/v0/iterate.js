@@ -64,13 +64,15 @@ export default async function handler(req, res) {
         }
 
         // Получаем сообщения чата через GET запрос (polling)
-        // Оптимизированный polling: быстрее интервал, меньше попыток
+        // Оптимизированный polling: проверяем, что код не меняется несколько попыток подряд
         console.log('Waiting for assistant response...');
-        const maxAttempts = 30; // 30 попыток (было 60)
-        const pollInterval = 1000; // 1 секунда между попытками (было 2)
+        const maxAttempts = 30; // 30 попыток
+        const pollInterval = 1000; // 1 секунда между попытками
         let code = '';
         let lastMessageCount = 0;
         let lastCodeLength = 0;
+        let stableCodeAttempts = 0; // Счетчик попыток, когда код не меняется
+        const requiredStableAttempts = 3; // Код должен не меняться 3 попытки подряд
 
         for (let attempt = 0; attempt < maxAttempts; attempt++) {
             await new Promise(resolve => setTimeout(resolve, pollInterval));
@@ -101,27 +103,34 @@ export default async function handler(req, res) {
                     
                     // Проверяем, изменился ли код (генерация продолжается)
                     if (newCode.length > lastCodeLength) {
+                        // Код изменился - генерация продолжается
                         code = newCode;
                         lastCodeLength = newCode.length;
+                        stableCodeAttempts = 0; // Сбрасываем счетчик стабильности
+                        console.log(`Code is growing: ${newCode.length} chars (attempt ${attempt + 1})`);
+                    } else if (newCode.length === lastCodeLength && newCode.length > 0) {
+                        // Код не изменился - возможно готов
+                        stableCodeAttempts++;
+                        console.log(`Code is stable: ${newCode.length} chars, stable attempts: ${stableCodeAttempts}/${requiredStableAttempts}`);
                         
-                        // Если код достаточно большой и не меняется - считаем готовым
-                        if (code.length > 100 && attempt > 5) {
-                            // Проверяем, не меняется ли код последние 3 попытки
-                            if (attempt > 3) {
-                                console.log(`Got response after ${attempt + 1} attempts (${code.length} chars)`);
-                                break;
-                            }
+                        if (stableCodeAttempts >= requiredStableAttempts && newCode.length > 50) {
+                            // Код стабилен несколько попыток подряд - считаем готовым
+                            code = newCode;
+                            console.log(`Code is ready after ${attempt + 1} attempts (${code.length} chars, stable for ${stableCodeAttempts} attempts)`);
+                            break;
                         }
+                    }
+                } else if (code && code.length > 0) {
+                    // Нет новых сообщений, но код уже есть - проверяем стабильность
+                    stableCodeAttempts++;
+                    if (stableCodeAttempts >= requiredStableAttempts) {
+                        console.log(`No new messages, code is stable for ${stableCodeAttempts} attempts, returning`);
+                        break;
                     }
                 }
                 
                 lastMessageCount = assistantMessages.length;
                 
-                // Если код есть и прошло достаточно времени - возвращаем
-                if (code && code.length > 0 && attempt >= 10) {
-                    console.log(`Returning code after ${attempt + 1} attempts`);
-                    break;
-                }
             } catch (pollError) {
                 console.warn(`Polling error (attempt ${attempt + 1}):`, pollError.message);
                 continue;
