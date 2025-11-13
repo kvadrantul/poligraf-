@@ -81,7 +81,7 @@ export default async function handler(req, res) {
             },
             body: JSON.stringify({
                 projectId: projectId,
-                initialMessage: 'Hello! I\'m ready to help you build components.'
+                message: 'Hello! I\'m ready to help you build components.'
             }),
         });
 
