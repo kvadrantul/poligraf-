@@ -1,4 +1,8 @@
 {
+  "version": 2,
+  "buildCommand": null,
+  "outputDirectory": ".",
+  "framework": null,
   "functions": {
     "api/generate.js": {
       "maxDuration": 90
