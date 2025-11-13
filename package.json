@@ -1,0 +1,11 @@
+{
+  "name": "poligraf-telegram-miniapp",
+  "version": "1.0.0",
+  "description": "Telegram Mini App для генерации UI через v0.dev API",
+  "scripts": {
+    "dev": "vercel dev"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}
+

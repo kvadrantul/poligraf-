@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Poligraf Mini App - Локальный тест</title>
+    <!-- Имитация Telegram Web App API для локального тестирования -->
+    <script>
+        window.Telegram = {
+            WebApp: {
+                ready: () => console.log('Telegram WebApp ready'),
+                expand: () => console.log('Telegram WebApp expanded'),
+                themeParams: {
+                    bg_color: '#ffffff',
+                    text_color: '#000000',
+                    hint_color: '#999999',
+                    button_color: '#3390ec',
+                    button_text_color: '#ffffff',
+                    secondary_bg_color: '#f0f0f0'
+                },
+                HapticFeedback: {
+                    impactOccurred: (style) => console.log('Haptic feedback:', style)
+                }
+            }
+        };
+    </script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Поле для отображения результата -->
+        <div class="result-area">
+            <div class="result-content" id="resultContent">
+                <p class="placeholder">Результат будет отображаться здесь</p>
+            </div>
+        </div>
+
+        <!-- Поле для ввода комментария -->
+        <div class="input-area">
+            <textarea 
+                id="commentInput" 
+                class="comment-input" 
+                placeholder="Введите ваш комментарий..."
+                rows="3"
+            ></textarea>
+            <button id="sendButton" class="send-button">
+                Отправить
+            </button>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
+

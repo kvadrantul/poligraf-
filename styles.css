@@ -47,6 +47,59 @@ body {
     text-align: center;
 }
 
+/* Результаты */
+.result-item {
+    margin-bottom: 16px;
+    padding: 12px;
+    background: var(--tg-theme-bg-color, #ffffff);
+    border-radius: 8px;
+    word-wrap: break-word;
+}
+
+.result-separator {
+    border: none;
+    border-top: 1px solid var(--tg-theme-hint-color, #e0e0e0);
+    margin: 16px 0;
+}
+
+.code-block {
+    background: var(--tg-theme-secondary-bg-color, #f5f5f5);
+    padding: 12px;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--tg-theme-text-color, #000000);
+    margin: 0;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.result-text {
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--tg-theme-text-color, #000000);
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.loading-indicator {
+    padding: 12px;
+    text-align: center;
+    color: var(--tg-theme-hint-color, #999999);
+    font-size: 16px;
+}
+
+.error-message {
+    padding: 12px;
+    background: #fee;
+    color: #c33;
+    border-radius: 8px;
+    font-size: 14px;
+    margin-top: 8px;
+}
+
 /* Область ввода */
 .input-area {
     display: flex;
