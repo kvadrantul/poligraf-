@@ -21,10 +21,17 @@ const API_GET_PROJECT_CONTENT = `${API_BASE}/api/v0/get-project-content`; // Pla
 
 // Получаем Telegram User ID
 // ВАЖНО: userId должен быть стабильным между перезагрузками
-// Используем Telegram User ID или создаем постоянный ID на основе initData
+// Используем Telegram User ID или создаем постоянный ID
 let userId;
+
+// Сначала пробуем получить из localStorage (для стабильности между перезагрузками)
+const storedUserId = localStorage.getItem('poligraf-user-id');
+
 if (tg.initDataUnsafe?.user?.id) {
+    // Есть Telegram User ID - используем его
     userId = `tg_${tg.initDataUnsafe.user.id}`;
+    // Сохраняем для стабильности
+    localStorage.setItem('poligraf-user-id', userId);
 } else if (tg.initData) {
     // Пробуем извлечь из initData если есть
     try {
@@ -33,16 +40,23 @@ if (tg.initDataUnsafe?.user?.id) {
         if (userData) {
             const user = JSON.parse(decodeURIComponent(userData));
             userId = `tg_${user.id}`;
+            localStorage.setItem('poligraf-user-id', userId);
         }
     } catch (e) {
-        // Если не получилось - используем временный, но сохраняем в sessionStorage
-        userId = sessionStorage.getItem('poligraf-user-id') || `user_${Date.now()}`;
-        sessionStorage.setItem('poligraf-user-id', userId);
+        // Если не получилось - используем сохраненный или создаем новый
+        userId = storedUserId || `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        localStorage.setItem('poligraf-user-id', userId);
     }
 } else {
-    // Fallback: используем sessionStorage для сохранения ID между перезагрузками
-    userId = sessionStorage.getItem('poligraf-user-id') || `user_${Date.now()}`;
-    sessionStorage.setItem('poligraf-user-id', userId);
+    // Нет Telegram - используем сохраненный ID или создаем новый постоянный
+    if (storedUserId) {
+        userId = storedUserId;
+    } else {
+        // Создаем новый постоянный ID для тестирования
+        userId = `test_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        localStorage.setItem('poligraf-user-id', userId);
+        console.log('Created new test userId (no Telegram):', userId);
+    }
 }
 
 console.log('Initialized userId:', userId);
