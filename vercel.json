@@ -10,7 +10,7 @@
       "maxDuration": 300
     },
     "api/v0/save-to-project.js": {
-      "maxDuration": 60
+      "maxDuration": 10
     },
     "api/v0/get-project-content.js": {
       "maxDuration": 30

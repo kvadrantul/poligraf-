@@ -451,7 +451,8 @@ async function sendToV0(prompt) {
                     ? lastCode.substring(0, maxCodeLength) + '\n// ... (code truncated)'
                     : lastCode;
                 
-                enhancedPrompt = `Here is the current code:\n\n\`\`\`tsx\n${truncatedCode}\n\`\`\`\n\nNow ${prompt}`;
+                // Формируем промпт для итерации - более прямой формат
+                enhancedPrompt = `Update this React component:\n\n\`\`\`tsx\n${truncatedCode}\n\`\`\`\n\nUser request: ${prompt}\n\nPlease update the component according to the user's request and return the complete updated code.`;
             }
         }
         
@@ -620,14 +621,8 @@ async function loadProjectOnStartup() {
         // Проверяем, есть ли сохраненный проект
         const stored = localStorage.getItem(`v0-project-${userId}`);
         if (!stored) {
-            // Нет проекта - показываем приветственное сообщение
-            resultContent.innerHTML = `
-                <div style="padding: 20px; text-align: center; color: var(--tg-theme-hint-color, #999999);">
-                    <p style="font-size: 16px; margin-bottom: 12px;">👋 Добро пожаловать!</p>
-                    <p style="font-size: 14px;">Введите описание компонента, и я создам его для вас.</p>
-                    <p style="font-size: 12px; margin-top: 12px; opacity: 0.8;">Например: "Создай красивую кнопку"</p>
-                </div>
-            `;
+            // Нет проекта - оставляем пустым (не показываем ничего)
+            resultContent.innerHTML = '';
             return;
         }
 
@@ -650,33 +645,18 @@ async function loadProjectOnStartup() {
                 // Сохраняем в историю для использования в итерациях
                 saveToHistory(data.code);
             } else {
-                // Нет контента - показываем приветствие
-                resultContent.innerHTML = `
-                    <div style="padding: 20px; text-align: center; color: var(--tg-theme-hint-color, #999999);">
-                        <p style="font-size: 16px; margin-bottom: 12px;">👋 Ваш проект готов!</p>
-                        <p style="font-size: 14px;">Введите описание компонента для генерации.</p>
-                    </div>
-                `;
+                // Нет контента - оставляем пустым
+                resultContent.innerHTML = '';
             }
         } else {
             console.warn('Failed to load project content');
-            // Показываем приветствие при ошибке
-            resultContent.innerHTML = `
-                <div style="padding: 20px; text-align: center; color: var(--tg-theme-hint-color, #999999);">
-                    <p style="font-size: 16px; margin-bottom: 12px;">👋 Добро пожаловать!</p>
-                    <p style="font-size: 14px;">Введите описание компонента для генерации.</p>
-                </div>
-            `;
+            // При ошибке оставляем пустым
+            resultContent.innerHTML = '';
         }
     } catch (error) {
         console.error('Error loading project on startup:', error);
-        // Показываем приветствие при ошибке
-        resultContent.innerHTML = `
-            <div style="padding: 20px; text-align: center; color: var(--tg-theme-hint-color, #999999);">
-                <p style="font-size: 16px; margin-bottom: 12px;">👋 Добро пожаловать!</p>
-                <p style="font-size: 14px;">Введите описание компонента для генерации.</p>
-            </div>
-        `;
+        // При ошибке оставляем пустым
+        resultContent.innerHTML = '';
     }
 }
 
