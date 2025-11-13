@@ -27,23 +27,34 @@
             </div>
         </div>
         
+        <!-- Кнопка "Назад" в верхнем углу -->
+        <button id="backButton" class="back-button">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
+        </button>
+        
         <!-- Поле для отображения результата -->
         <div class="result-area">
             <div class="result-content" id="resultContent">
             </div>
         </div>
 
-        <!-- Поле для ввода комментария -->
+        <!-- Поле для ввода комментария (круглое) -->
         <div class="input-area">
-            <textarea 
-                id="commentInput" 
-                class="comment-input" 
-                placeholder="Введите ваш комментарий..."
-                rows="3"
-            ></textarea>
-            <button id="sendButton" class="send-button">
-                Отправить
-            </button>
+            <div class="input-wrapper">
+                <svg class="input-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17 8 12 3 7 8"></polyline>
+                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                <input 
+                    id="commentInput" 
+                    class="comment-input" 
+                    type="text"
+                    placeholder="Что хотите исправить?"
+                />
+            </div>
         </div>
     </div>
 

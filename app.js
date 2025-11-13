@@ -8,7 +8,7 @@ tg.expand();
 // Получаем элементы DOM
 const resultContent = document.getElementById('resultContent');
 const commentInput = document.getElementById('commentInput');
-const sendButton = document.getElementById('sendButton');
+const backButton = document.getElementById('backButton');
 
 // Конфигурация API
 const API_BASE = 'https://poligraf-black.vercel.app';
@@ -352,9 +352,7 @@ async function sendToV0(prompt) {
     let loadingIndicator = null;
 
     try {
-        sendButton.disabled = true;
-        sendButton.textContent = 'Генерация...';
-        
+        // Показываем спиннер поверх контента (не очищаем предыдущий контент)
         loadingIndicator = document.createElement('div');
         loadingIndicator.className = 'loading-indicator';
         
@@ -363,8 +361,8 @@ async function sendToV0(prompt) {
         
         loadingIndicator.appendChild(spinner);
         
-        resultContent.appendChild(loadingIndicator);
-        resultContent.scrollTop = resultContent.scrollHeight;
+        // Добавляем спиннер в body, чтобы он был поверх всего контента
+        document.body.appendChild(loadingIndicator);
 
         // Проверяем, есть ли сохраненный код для контекста (правка)
         const codeKey = `poligraf-last-code-${userId}`;
@@ -424,7 +422,7 @@ async function sendToV0(prompt) {
         const data = await response.json();
         const generatedCode = data.result || data.code || data.markup || data;
         
-        // Отображаем результат
+        // Отображаем результат (заменяет предыдущий контент)
         displayResult(generatedCode);
 
         // Вибро-отклик успеха
@@ -437,8 +435,15 @@ async function sendToV0(prompt) {
             loadingIndicator.remove();
         }
 
+        // Показываем ошибку поверх контента
         const errorElement = document.createElement('div');
         errorElement.className = 'error-message';
+        errorElement.style.position = 'fixed';
+        errorElement.style.top = '50%';
+        errorElement.style.left = '50%';
+        errorElement.style.transform = 'translate(-50%, -50%)';
+        errorElement.style.zIndex = '10000';
+        errorElement.style.maxWidth = '80%';
         
         if (error.name === 'AbortError' || error.message.includes('timeout')) {
             errorElement.textContent = 'Время ожидания истекло. Генерация занимает слишком долго. Попробуйте более простой запрос.';
@@ -446,39 +451,42 @@ async function sendToV0(prompt) {
             errorElement.textContent = `Ошибка: ${error.message}`;
         }
         
-        resultContent.appendChild(errorElement);
-        resultContent.scrollTop = resultContent.scrollHeight;
+        document.body.appendChild(errorElement);
+        
+        // Убираем ошибку через 5 секунд
+        setTimeout(() => {
+            if (errorElement.parentNode) {
+                errorElement.remove();
+            }
+        }, 5000);
 
         tg.HapticFeedback.notificationOccurred('error');
-    } finally {
-        sendButton.disabled = false;
-        sendButton.textContent = 'Отправить';
     }
 }
 
-// Обработчик отправки комментария
-sendButton.addEventListener('click', async () => {
-    const comment = commentInput.value.trim();
-    
-    if (comment) {
-        await sendToV0(comment);
-        commentInput.value = '';
-    } else {
-        tg.HapticFeedback.impactOccurred('light');
+// Обработчик отправки комментария (Enter)
+commentInput.addEventListener('keydown', async (e) => {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        const comment = commentInput.value.trim();
+        
+        if (comment) {
+            await sendToV0(comment);
+            commentInput.value = '';
+        } else {
+            tg.HapticFeedback.impactOccurred('light');
+        }
     }
 });
 
-// Обработка Enter для отправки
-commentInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendButton.click();
-    }
+// Обработчик кнопки "Назад"
+backButton.addEventListener('click', () => {
+    tg.close();
 });
 
 // Загружаем сохраненную HTML при старте
 loadSavedHTML();
 
-// Обновляем стили в соответствии с темой Telegram
-document.body.style.backgroundColor = tg.themeParams.bg_color || '#ffffff';
-document.body.style.color = tg.themeParams.text_color || '#000000';
+// Устанавливаем черный фон
+document.body.style.backgroundColor = '#000000';
+document.body.style.color = '#ffffff';
