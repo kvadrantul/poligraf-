@@ -82,10 +82,14 @@ export default async function handler(req, res) {
     }
 
     try {
-        const { prompt, image } = req.body;
+        const { systemPrompt, userPrompt, image } = req.body;
 
-        if (!prompt) {
-            return res.status(400).json({ error: 'Prompt is required' });
+        if (!userPrompt) {
+            return res.status(400).json({ error: 'userPrompt is required' });
+        }
+        
+        if (!systemPrompt) {
+            return res.status(400).json({ error: 'systemPrompt is required' });
         }
 
         // Получаем API ключ из переменных окружения
@@ -155,50 +159,22 @@ export default async function handler(req, res) {
         } else {
             // Используем v0.dev API
             console.log('Using v0.dev API');
-            console.log('Prompt length:', prompt.length);
-            console.log('Prompt preview:', prompt.substring(0, 200));
+            console.log('System prompt length:', systemPrompt.length);
+            console.log('User prompt length:', userPrompt.length);
+            console.log('User prompt preview:', userPrompt.substring(0, 200));
+            console.log('Has image:', !!image);
             
             const v0ApiUrl = 'https://api.v0.dev/v1/chat/completions';
 
-            // Улучшаем промпт - добавляем контекст для генерации React компонентов
-            let enhancedPrompt = prompt;
-            
-            // Проверяем, содержит ли промпт уже контекст существующего кода (для правок)
-            // Если промпт содержит "existing code" или "BASE/FOUNDATION", значит это правка с контекстом
-            const hasExistingCodeContext = prompt.includes('existing code') || 
-                                         prompt.includes('BASE/FOUNDATION') ||
-                                         prompt.includes('Existing component code') ||
-                                         prompt.includes('```tsx') ||
-                                         prompt.includes('```ts');
-            
-            // Если это НЕ правка с контекстом, и промпт короткий или не содержит явного запроса на компонент
-            if (!hasExistingCodeContext && (prompt.length < 50 || (!prompt.toLowerCase().includes('component') && 
-                !prompt.toLowerCase().includes('кнопк') && 
-                !prompt.toLowerCase().includes('форма') &&
-                !prompt.toLowerCase().includes('страниц') &&
-                !prompt.toLowerCase().includes('ui') &&
-                !prompt.toLowerCase().includes('интерфейс')))) {
-                enhancedPrompt = `Generate a React component for: ${prompt}\n\nPlease return only the React/TSX code, no explanations.`;
-            }
-            
-            // Логируем для отладки
-            if (hasExistingCodeContext) {
-                console.log('✅ Detected edit request with existing code context');
-                console.log('Prompt length:', prompt.length);
-                console.log('Prompt preview (first 500 chars):', prompt.substring(0, 500));
-            } else {
-                console.log('📝 New generation request (no existing code context)');
-            }
-
-            // Формируем контент сообщения (может быть строкой или массивом с текстом и изображением)
-            let userContent = enhancedPrompt;
+            // Формируем контент сообщения пользователя (может быть строкой или массивом с текстом и изображением)
+            let userContent = userPrompt;
             
             // Если есть изображение, формируем массив с текстом и изображением
             if (image) {
                 userContent = [
                     {
                         type: 'text',
-                        text: enhancedPrompt
+                        text: userPrompt
                     },
                     {
                         type: 'image_url',
@@ -210,10 +186,12 @@ export default async function handler(req, res) {
                 console.log('✅ Image attached to v0.dev API request');
             }
             
-            // Формируем сообщения: системный промпт убираем, так как он уже включен в userContent
-            // Если userContent - массив (с изображением), то системный промпт уже в тексте
-            // Если userContent - строка, то системный промпт тоже уже в тексте
+            // Формируем сообщения: системный промпт отдельно, пользовательский промпт отдельно
             const messages = [
+                {
+                    role: 'system',
+                    content: systemPrompt
+                },
                 {
                     role: 'user',
                     content: userContent

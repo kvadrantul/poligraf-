@@ -528,12 +528,11 @@ async function sendToV0(prompt) {
             console.error('resultArea not found for loading overlay');
         }
 
-        // Добавляем системный промпт в начало каждого запроса
-        let enhancedPrompt = SYSTEM_PROMPT + '\n\n' + prompt;
-        
-        // Упрощенная логика: если есть сохраненная разметка - используем как референс
+        // Формируем промпт пользователя (без системного промпта)
         const htmlKey = `poligraf-last-html-${userId}`;
         const lastHTML = localStorage.getItem(htmlKey);
+        
+        let userPrompt = prompt;
         
         // Если есть сохраненная разметка - используем её как референс
         if (lastHTML && lastHTML.length > 100) {
@@ -550,50 +549,29 @@ async function sendToV0(prompt) {
                     ? lastHTML.substring(0, maxHtmlLength) + '\n<!-- ... (HTML truncated) -->'
                     : lastHTML;
                 
-                // Формируем промпт: системный промпт + референс (разметка) + новый промпт из поля
-                enhancedPrompt = SYSTEM_PROMPT + `\n\nHere is a reference of the current page (HTML markup):
+                // Формируем промпт: "возьми за основу вот этот HTML и сделай [промпт пользователя]"
+                userPrompt = `возьми за основу вот этот HTML:
 
 \`\`\`html
 ${truncatedHTML}
 \`\`\`
 
-I need to modify this page. Change request: "${prompt}"
-
-Please return the complete updated React/TSX component code that implements this change. Keep the same structure, layout, and styling. Only modify what was requested.`;
+и сделай ${prompt}`;
                 
                 console.log('✅ Using saved HTML as reference');
                 console.log('  - HTML length:', truncatedHTML.length);
-                console.log('  - HTML preview:', truncatedHTML.substring(0, 200));
                 console.log('  - Prompt:', prompt);
             } else {
                 console.warn('⚠️ Saved HTML appears invalid, ignoring it');
-                console.warn('  - HTML content:', lastHTML.substring(0, 200));
             }
         } else {
             console.log('📝 New generation (no saved markup)');
-            if (lastHTML) {
-                console.log('  - Saved HTML exists but too short:', lastHTML.length);
-            }
         }
         
-        // Формируем контент сообщения (может быть строкой или массивом с текстом и изображением)
-        let messageContent = enhancedPrompt;
-        
-        // Если есть загруженное изображение, формируем массив с текстом и изображением
+        // Если есть изображение, добавляем упоминание о нём
         if (uploadedImageBase64) {
-            messageContent = [
-                {
-                    type: 'text',
-                    text: enhancedPrompt
-                },
-                {
-                    type: 'image_url',
-                    image_url: {
-                        url: uploadedImageBase64
-                    }
-                }
-            ];
-            console.log('✅ Image attached to request');
+            userPrompt += '\n\nСмотри на такой референс который я прикрепил в изображении.';
+            console.log('✅ Image reference mentioned in prompt');
         }
 
         const controller = new AbortController();
@@ -605,7 +583,8 @@ Please return the complete updated React/TSX component code that implements this
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({ 
-                prompt: enhancedPrompt,
+                systemPrompt: SYSTEM_PROMPT,
+                userPrompt: userPrompt,
                 image: uploadedImageBase64 || null
             }),
             signal: controller.signal
