@@ -833,40 +833,58 @@ async function loadProjectOnStartup() {
 
         // Загружаем контент проекта
         console.log('Loading project content on startup:', projectId, chatId);
+        console.log('API URL:', `${API_GET_PROJECT_CONTENT}?projectId=${projectId}&chatId=${chatId}`);
+        
         try {
             const response = await fetch(`${API_GET_PROJECT_CONTENT}?projectId=${projectId}&chatId=${chatId}`);
             
             console.log('Project content response status:', response.status);
+            console.log('Project content response ok:', response.ok);
             
             if (response.ok) {
                 const data = await response.json();
-                console.log('Project content data:', { 
+                console.log('Project content data (full):', JSON.stringify(data, null, 2));
+                console.log('Project content data (summary):', { 
                     hasContent: data.hasContent, 
                     codeLength: data.code?.length || 0,
                     messagesCount: data.messagesCount,
-                    codePreview: data.code?.substring(0, 100) || 'no code'
+                    codePreview: data.code?.substring(0, 200) || 'no code',
+                    codeFirstChars: data.code ? data.code.substring(0, 50) : 'no code'
                 });
                 
                 if (data.hasContent && data.code && data.code.length > 0) {
                     // Есть контент - отображаем его
-                    console.log('Project has content, displaying it, length:', data.code.length);
+                    console.log('✅ Project has content, displaying it, length:', data.code.length);
                     displayResult(data.code);
                     
                     // Сохраняем в историю для использования в итерациях
                     saveToHistory(data.code);
                 } else {
                     // Нет контента - оставляем пустым
-                    console.log('Project exists but has no content (hasContent:', data.hasContent, ', codeLength:', data.code?.length || 0, ')');
+                    console.warn('❌ Project exists but has no content:', {
+                        hasContent: data.hasContent,
+                        codeLength: data.code?.length || 0,
+                        codeExists: !!data.code,
+                        messagesCount: data.messagesCount
+                    });
                     resultContent.innerHTML = '';
                 }
             } else {
                 const errorText = await response.text().catch(() => 'Unknown error');
-                console.warn('Failed to load project content:', response.status, errorText);
+                console.error('❌ Failed to load project content:', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    error: errorText
+                });
                 // При ошибке оставляем пустым
                 resultContent.innerHTML = '';
             }
         } catch (fetchError) {
-            console.error('Error fetching project content:', fetchError);
+            console.error('❌ Error fetching project content:', fetchError);
+            console.error('Fetch error details:', {
+                message: fetchError.message,
+                stack: fetchError.stack
+            });
             resultContent.innerHTML = '';
         }
     } catch (error) {

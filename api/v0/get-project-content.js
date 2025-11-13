@@ -60,11 +60,14 @@ export default async function handler(req, res) {
         const messages = messagesData.messages || messagesData.data?.messages || [];
         
         console.log('Total messages:', messages.length);
+        console.log('Messages structure:', JSON.stringify(messages.map(m => ({ role: m.role, contentLength: m.content?.length || 0 })), null, 2));
         
         // Ищем последнее сообщение от assistant с кодом
         const assistantMessages = messages
             .filter(msg => msg.role === 'assistant')
             .reverse();
+        
+        console.log('Assistant messages count:', assistantMessages.length);
         
         let lastCode = '';
         let hasContent = false;
@@ -75,31 +78,49 @@ export default async function handler(req, res) {
             lastCode = lastMessage.content || '';
             hasContent = lastCode.length > 0;
             console.log('Found assistant message with code, length:', lastCode.length);
+            console.log('Assistant message preview:', lastCode.substring(0, 200));
         } else {
             // Нет сообщений от assistant - ищем код в сообщениях пользователя
             // (когда код был сохранен через save-to-project)
+            console.log('No assistant messages, searching in user messages');
             const userMessages = messages
                 .filter(msg => msg.role === 'user')
                 .reverse();
             
-            for (const msg of userMessages) {
+            console.log('User messages count:', userMessages.length);
+            
+            for (let i = 0; i < userMessages.length; i++) {
+                const msg = userMessages[i];
                 const content = msg.content || '';
+                console.log(`Checking user message ${i + 1}, content length: ${content.length}`);
+                console.log(`User message ${i + 1} preview: ${content.substring(0, 200)}`);
+                
                 // Ищем код в markdown блоках
                 const codeBlockMatch = content.match(/```[\w]*\n?([\s\S]*?)```/);
                 if (codeBlockMatch && codeBlockMatch[1]) {
                     lastCode = codeBlockMatch[1].trim();
                     hasContent = lastCode.length > 0;
-                    console.log('Found code in user message, length:', lastCode.length);
+                    console.log('✅ Found code in user message markdown block, length:', lastCode.length);
                     break;
                 } else if (content.length > 100 && (content.includes('export') || content.includes('function') || content.includes('const'))) {
                     // Похоже на код без markdown блоков
                     lastCode = content.trim();
                     hasContent = lastCode.length > 0;
-                    console.log('Found code-like content in user message, length:', lastCode.length);
+                    console.log('✅ Found code-like content in user message (no markdown), length:', lastCode.length);
                     break;
                 }
             }
+            
+            if (!hasContent) {
+                console.log('❌ No code found in any user messages');
+            }
         }
+        
+        console.log('Final result:', {
+            hasContent: hasContent,
+            codeLength: lastCode.length,
+            codePreview: lastCode.substring(0, 100)
+        });
 
         return res.status(200).json({
             code: lastCode,
