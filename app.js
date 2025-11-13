@@ -50,7 +50,38 @@ if (tg.initDataUnsafe?.user?.id) {
 } else {
     // Нет Telegram - используем сохраненный ID или создаем новый постоянный БЕЗ рандома
     if (storedUserId) {
-        userId = storedUserId;
+        // Проверяем, содержит ли сохраненный userId рандом (старый формат)
+        // Старый формат: test_1234567890_abc123 или user_1234567890_abc123
+        // Новый формат: test_1234567890 или user_1234567890
+        if (storedUserId.includes('_') && storedUserId.split('_').length > 2) {
+            // Старый формат с рандомом - мигрируем
+            console.log('Migrating userId from old format (with random) to new format');
+            const oldUserId = storedUserId;
+            const oldProjectKey = `v0-project-${oldUserId}`;
+            const oldProjectData = localStorage.getItem(oldProjectKey);
+            
+            // Создаем новый userId без рандома
+            userId = storedUserId.startsWith('test_') 
+                ? `test_${Date.now()}`
+                : `user_${Date.now()}`;
+            
+            // Сохраняем новый userId
+            localStorage.setItem('poligraf-user-id', userId);
+            
+            // Мигрируем проект на новый ключ, если он существует
+            if (oldProjectData) {
+                const newProjectKey = `v0-project-${userId}`;
+                localStorage.setItem(newProjectKey, oldProjectData);
+                console.log('Migrated project from', oldProjectKey, 'to', newProjectKey);
+                // Удаляем старый ключ (опционально, можно оставить для совместимости)
+                // localStorage.removeItem(oldProjectKey);
+            }
+            
+            console.log('Migrated userId from', oldUserId, 'to', userId);
+        } else {
+            // Новый формат или формат без рандома - используем как есть
+            userId = storedUserId;
+        }
     } else {
         // Создаем новый постоянный ID для тестирования БЕЗ рандома
         userId = `test_${Date.now()}`;
