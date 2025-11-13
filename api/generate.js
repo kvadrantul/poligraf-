@@ -210,6 +210,16 @@ export default async function handler(req, res) {
                 console.log('✅ Image attached to v0.dev API request');
             }
             
+            // Формируем сообщения: системный промпт убираем, так как он уже включен в userContent
+            // Если userContent - массив (с изображением), то системный промпт уже в тексте
+            // Если userContent - строка, то системный промпт тоже уже в тексте
+            const messages = [
+                {
+                    role: 'user',
+                    content: userContent
+                }
+            ];
+            
             apiResponse = await fetch(v0ApiUrl, {
                 method: 'POST',
                 headers: {
@@ -218,16 +228,7 @@ export default async function handler(req, res) {
                 },
                 body: JSON.stringify({
                     model: 'v0-1.5-md',
-                    messages: [
-                        {
-                            role: 'system',
-                            content: 'Generate clean, modern React/TSX components. Always return valid React/TSX code. Return only the code, no explanations or thinking process.'
-                        },
-                        {
-                            role: 'user',
-                            content: userContent
-                        }
-                    ],
+                    messages: messages,
                     stream: false,
                 }),
             });
