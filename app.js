@@ -699,7 +699,6 @@ async function sendToV0(prompt) {
         
         // Если режим полиграфии включен, добавляем системный промпт в начало
         let userPrompt = polygraphyModeEnabled ? SYSTEM_PROMPT + '\n\n' : '';
-        userPrompt += prompt;
         
         // Если есть сохраненная разметка - используем её как референс
         if (lastHTML && lastHTML.length > 100) {
@@ -716,8 +715,8 @@ async function sendToV0(prompt) {
                     ? lastHTML.substring(0, maxHtmlLength) + '\n<!-- ... (HTML truncated) -->'
                     : lastHTML;
                 
-                // Формируем промпт: "возьми за основу вот этот HTML и сделай [промпт пользователя]"
-                userPrompt = `возьми за основу вот этот HTML:
+                // Формируем промпт: системный промпт (если есть) + "возьми за основу вот этот HTML и сделай [промпт пользователя]"
+                userPrompt += `возьми за основу вот этот HTML:
 
 \`\`\`html
 ${truncatedHTML}
@@ -730,9 +729,13 @@ ${truncatedHTML}
                 console.log('  - Prompt:', prompt);
             } else {
                 console.warn('⚠️ Saved HTML appears invalid, ignoring it');
+                // Если HTML невалидный, просто добавляем промпт пользователя
+                userPrompt += prompt;
             }
         } else {
             console.log('📝 New generation (no saved markup)');
+            // Если нет HTML референса, просто добавляем промпт пользователя
+            userPrompt += prompt;
         }
         
         // Если есть изображение, добавляем упоминание о нём
@@ -752,7 +755,7 @@ ${truncatedHTML}
         }
 
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 55000);
+        const timeoutId = setTimeout(() => controller.abort(), 90000); // Увеличено до 90 секунд
 
         const response = await fetch(API_GENERATE, {
             method: 'POST',
