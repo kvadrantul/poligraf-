@@ -4,10 +4,10 @@
       "maxDuration": 60
     },
     "api/v0/create-project.js": {
-      "maxDuration": 30
+      "maxDuration": 300
     },
     "api/v0/iterate.js": {
-      "maxDuration": 60
+      "maxDuration": 300
     }
   },
   "rewrites": [

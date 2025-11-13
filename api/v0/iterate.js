@@ -33,7 +33,11 @@ export default async function handler(req, res) {
 
         // Отправляем сообщение в чат (итерация)
         // Согласно документации: POST https://api.v0.dev/v1/chats/:id/messages
+        // Увеличиваем таймаут для длительных запросов
         console.log('Sending message to chat:', chatId);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 280000); // 280 секунд (чуть меньше 300)
+        
         const iterateResponse = await fetch(`https://api.v0.dev/v1/chats/${chatId}/messages`, {
             method: 'POST',
             headers: {
@@ -43,7 +47,10 @@ export default async function handler(req, res) {
             body: JSON.stringify({
                 message: prompt
             }),
+            signal: controller.signal
         });
+        
+        clearTimeout(timeoutId);
 
         if (!iterateResponse.ok) {
             const errorText = await iterateResponse.text();
