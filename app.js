@@ -488,73 +488,46 @@ async function sendToV0(prompt) {
         // Отображаем результат
         displayResult(generatedCode);
 
-        // Сохраняем в проект Platform API (асинхронно, не ждем)
-        // Используем быструю генерацию Model API, но сохраняем в проект для истории
-        // Автоматически создаем проект при первом использовании
+        // Создаем проект при первом использовании (если нет)
+        // НЕ сохраняем код через чат автоматически - это создает мусор в чате
+        // Проект нужен только для загрузки контента при старте и для будущих итераций через Platform API
         (async () => {
             try {
-                let projectId, chatId;
-                
-                // Проверяем, есть ли уже проект
                 const stored = localStorage.getItem(`v0-project-${userId}`);
                 if (stored) {
-                    const parsed = JSON.parse(stored);
-                    projectId = parsed.projectId;
-                    chatId = parsed.chatId;
+                    // Проект уже есть - ничего не делаем
+                    return;
                 }
                 
-                // Если проекта нет - создаем
-                if (!projectId || !chatId) {
-                    console.log('Creating project for first-time user');
-                    try {
-                        const projectResponse = await fetch(API_CREATE_PROJECT, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({ userId }),
-                        });
-                        
-                        if (projectResponse.ok) {
-                            const projectData = await projectResponse.json();
-                            projectId = projectData.projectId;
-                            chatId = projectData.chatId;
-                            
-                            if (projectId && chatId) {
-                                // Сохраняем в localStorage
-                                localStorage.setItem(`v0-project-${userId}`, JSON.stringify({ projectId, chatId }));
-                                const projectsCount = parseInt(localStorage.getItem('v0-projects-count') || '0');
-                                localStorage.setItem('v0-projects-count', String(projectsCount + 1));
-                                console.log('Project created and saved:', projectId);
-                            }
-                        } else {
-                            console.warn('Failed to create project, skipping save');
-                            return;
-                        }
-                    } catch (createError) {
-                        console.warn('Error creating project, skipping save:', createError);
-                        return;
-                    }
-                }
-                
-                // Сохраняем код в проект (в фоне, не ждем ответа)
-                if (projectId && chatId) {
-                    fetch(API_SAVE_TO_PROJECT, {
+                // Создаем проект только если его нет
+                console.log('Creating project for first-time user');
+                try {
+                    const projectResponse = await fetch(API_CREATE_PROJECT, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
                         },
-                        body: JSON.stringify({
-                            projectId: projectId,
-                            chatId: chatId,
-                            code: typeof generatedCode === 'string' ? generatedCode : JSON.stringify(generatedCode)
-                        }),
-                    }).catch(err => {
-                        console.warn('Failed to save to project (non-critical):', err);
+                        body: JSON.stringify({ userId }),
                     });
+                    
+                    if (projectResponse.ok) {
+                        const projectData = await projectResponse.json();
+                        const projectId = projectData.projectId;
+                        const chatId = projectData.chatId;
+                        
+                        if (projectId && chatId) {
+                            // Сохраняем в localStorage
+                            localStorage.setItem(`v0-project-${userId}`, JSON.stringify({ projectId, chatId }));
+                            const projectsCount = parseInt(localStorage.getItem('v0-projects-count') || '0');
+                            localStorage.setItem('v0-projects-count', String(projectsCount + 1));
+                            console.log('Project created and saved:', projectId);
+                        }
+                    }
+                } catch (createError) {
+                    console.warn('Error creating project:', createError);
                 }
-            } catch (saveError) {
-                console.warn('Error saving to project (non-critical):', saveError);
+            } catch (error) {
+                console.warn('Error in project creation:', error);
             }
         })();
 
