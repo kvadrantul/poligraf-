@@ -17,6 +17,43 @@ const API_ENDPOINT = 'https://poligraf-black.vercel.app/api/generate';
 // История результатов (для отображения всех результатов в одном проекте)
 let resultsHistory = [];
 
+// Функция для обработки импортов в коде
+function processImports(code) {
+    let processedCode = code;
+    
+    // Заменяем импорты React на использование window.React
+    processedCode = processedCode.replace(
+        /import\s+React\s+from\s+['"]react['"];?/g,
+        '// React доступен через window.React'
+    );
+    processedCode = processedCode.replace(
+        /import\s+\*\s+as\s+React\s+from\s+['"]react['"];?/g,
+        '// React доступен через window.React'
+    );
+    
+    // Заменяем импорты из lucide-react
+    const lucideImports = processedCode.match(/import\s+{([^}]+)}\s+from\s+['"]lucide-react['"];?/);
+    if (lucideImports) {
+        const icons = lucideImports[1].split(',').map(i => i.trim());
+        const lucideReplace = icons.map(icon => {
+            return `const ${icon} = window.lucideReact && window.lucideReact.${icon} ? window.lucideReact.${icon} : () => React.createElement('svg', { width: 24, height: 24 }, React.createElement('path'));`;
+        }).join('\n');
+        
+        processedCode = processedCode.replace(
+            /import\s+{([^}]+)}\s+from\s+['"]lucide-react['"];?/,
+            lucideReplace
+        );
+    }
+    
+    // Убираем другие импорты (можно расширить при необходимости)
+    processedCode = processedCode.replace(
+        /import\s+.*?from\s+['"][^'"]+['"];?/g,
+        '// Импорт обработан'
+    );
+    
+    return processedCode;
+}
+
 // Функция для рендеринга React компонента
 function renderReactComponent(codeText, container) {
     try {
@@ -29,6 +66,9 @@ function renderReactComponent(codeText, container) {
         // Убираем строку file="..." если есть
         cleanCode = cleanCode.replace(/^file="[^"]*"\s*\n?/gm, '');
         
+        // Обрабатываем импорты
+        cleanCode = processImports(cleanCode);
+        
         // Если код содержит export default, оставляем как есть
         // Если нет, оборачиваем в функцию
         if (!cleanCode.includes('export default') && !cleanCode.includes('export')) {
@@ -40,11 +80,14 @@ function renderReactComponent(codeText, container) {
             }
         }
 
-        // Создаем модуль с компонентом
+        // Создаем модуль с компонентом (React уже доступен глобально, не объявляем заново)
         const moduleCode = `
-            const React = window.React;
-            const ReactDOM = window.ReactDOM;
-            ${cleanCode}
+            (function() {
+                const React = window.React;
+                const ReactDOM = window.ReactDOM;
+                ${cleanCode}
+                return module.exports;
+            })()
         `;
 
         // Трансформируем JSX в JavaScript с помощью Babel
@@ -63,16 +106,17 @@ function renderReactComponent(codeText, container) {
             'ReactDOM',
             'module',
             'exports',
+            'window',
             transformedCode
         );
 
-        executeCode(window.React, window.ReactDOM, module, module.exports);
+        const result = executeCode(window.React, window.ReactDOM, module, module.exports, window);
 
         // Получаем компонент
-        const Component = module.exports.default || module.exports;
+        const Component = (result && result.default) || module.exports.default || module.exports;
 
-        if (!Component) {
-            throw new Error('Компонент не найден. Убедитесь, что код содержит export default.');
+        if (!Component || typeof Component !== 'function') {
+            throw new Error('Компонент не найден или не является функцией. Убедитесь, что код содержит export default функцию.');
         }
 
         // Рендерим компонент
@@ -89,7 +133,7 @@ function renderReactComponent(codeText, container) {
                 <br><br>
                 <details>
                     <summary>Исходный код</summary>
-                    <pre style="font-size: 12px; margin-top: 8px;">${codeText.substring(0, 500)}...</pre>
+                    <pre style="font-size: 12px; margin-top: 8px; white-space: pre-wrap;">${codeText.substring(0, 1000)}${codeText.length > 1000 ? '...' : ''}</pre>
                 </details>
             </div>
         `;
