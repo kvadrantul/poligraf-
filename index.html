@@ -26,18 +26,28 @@
 
         <!-- Поле для ввода комментария (круглое) -->
         <div class="input-area">
-            <!-- Кнопка "Новый" над полем ввода -->
-            <button id="newButton" class="new-button" type="button">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="4" y1="6" x2="20" y2="6"></line>
-                    <line x1="4" y1="12" x2="20" y2="12"></line>
-                    <line x1="4" y1="18" x2="20" y2="18"></line>
-                    <circle cx="8" cy="6" r="2" fill="currentColor"></circle>
-                    <circle cx="8" cy="12" r="2" fill="currentColor"></circle>
-                    <circle cx="8" cy="18" r="2" fill="currentColor"></circle>
-                </svg>
-                <span>Новый</span>
-            </button>
+            <!-- Кнопки над полем ввода -->
+            <div class="top-buttons">
+                <!-- Кнопка загрузки изображения -->
+                <button id="imageUploadButton" class="image-upload-button" type="button" title="Загрузить изображение">
+                    <input type="file" id="imageInput" accept="image/*" style="display: none;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                </button>
+                
+                <!-- Кнопка "Новый" -->
+                <button id="newButton" class="new-button" type="button">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="16"></line>
+                        <line x1="8" y1="12" x2="16" y2="12"></line>
+                    </svg>
+                    <span>Новый</span>
+                </button>
+            </div>
             
             <div class="input-wrapper">
                 <svg class="input-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

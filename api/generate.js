@@ -82,7 +82,7 @@ export default async function handler(req, res) {
     }
 
     try {
-        const { prompt } = req.body;
+        const { prompt, image } = req.body;
 
         if (!prompt) {
             return res.status(400).json({ error: 'Prompt is required' });
@@ -190,6 +190,26 @@ export default async function handler(req, res) {
                 console.log('📝 New generation request (no existing code context)');
             }
 
+            // Формируем контент сообщения (может быть строкой или массивом с текстом и изображением)
+            let userContent = enhancedPrompt;
+            
+            // Если есть изображение, формируем массив с текстом и изображением
+            if (image) {
+                userContent = [
+                    {
+                        type: 'text',
+                        text: enhancedPrompt
+                    },
+                    {
+                        type: 'image_url',
+                        image_url: {
+                            url: image
+                        }
+                    }
+                ];
+                console.log('✅ Image attached to v0.dev API request');
+            }
+            
             apiResponse = await fetch(v0ApiUrl, {
                 method: 'POST',
                 headers: {
@@ -205,7 +225,7 @@ export default async function handler(req, res) {
                         },
                         {
                             role: 'user',
-                            content: enhancedPrompt
+                            content: userContent
                         }
                     ],
                     stream: false,

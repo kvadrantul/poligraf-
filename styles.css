@@ -194,6 +194,42 @@ body {
     gap: 12px;
 }
 
+/* Контейнер для кнопок над полем ввода */
+.top-buttons {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+/* Кнопка загрузки изображения */
+.image-upload-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 50px;
+    padding: 10px;
+    color: #ffffff;
+    cursor: pointer;
+    transition: background 0.2s, opacity 0.2s;
+    backdrop-filter: blur(10px);
+    width: 40px;
+    height: 40px;
+}
+
+.image-upload-button:active {
+    background: rgba(255, 255, 255, 0.15);
+    opacity: 0.8;
+}
+
+.image-upload-button svg {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+}
+
 /* Кнопка "Новый" над полем ввода */
 .new-button {
     display: flex;
@@ -209,7 +245,6 @@ body {
     font-weight: 500;
     cursor: pointer;
     transition: background 0.2s, opacity 0.2s;
-    align-self: flex-end;
     backdrop-filter: blur(10px);
 }
 

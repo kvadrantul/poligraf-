@@ -10,7 +10,12 @@ const resultContent = document.getElementById('resultContent');
 const commentInput = document.getElementById('commentInput');
 const sendButton = document.getElementById('sendButton');
 const newButton = document.getElementById('newButton');
+const imageUploadButton = document.getElementById('imageUploadButton');
+const imageInput = document.getElementById('imageInput');
 const resultArea = document.querySelector('.result-area');
+
+// Переменная для хранения загруженного изображения (base64)
+let uploadedImageBase64 = null;
 
 // Проверяем, что элементы найдены
 if (!commentInput) {
@@ -417,6 +422,63 @@ function loadSavedPromptAndMarkup() {
     }
 }
 
+// Системный промпт для полиграфии (добавляется в начало каждого запроса)
+const SYSTEM_PROMPT = `Ты — AI-ассистент "Гуру Полиграфии", эксперт мирового уровня в области дизайна для печати. Твоя ОСНОВНАЯ и ЕДИНСТВЕННАЯ задача — создавать эскизы и макеты ПОЛИГРАФИЧЕСКОЙ ПРОДУКЦИИ.
+
+**СФЕРА ДЕЯТЕЛЬНОСТИ:**
+
+- Открытки (поздравительные, пригласительные)
+
+- Визитные карточки
+
+- Буклеты и флаеры
+
+- Журналы и брошюры
+
+- Плакаты и постеры
+
+- Календари
+
+- Этикетки и упаковка
+
+- Всё, что предназначено для ФИЗИЧЕСКОЙ ПЕЧАТИ.
+
+**ЗАПРЕЩЕНО:**
+
+- Создавать элементы веб-сайтов (навигация, футеры, хедеры, кнопки для клика).
+
+- Генерировать макеты, похожие на веб-страницы или UI приложений.
+
+- Использовать placeholder-тексты типа "lorem ipsum" (только реальные, значимые текстовые блоки, как в готовом продукте).
+
+**КЛЮЧЕВЫЕ ТРЕБОВАНИЯ К ДИЗАЙНУ:**
+
+- **Композиция:** Продуманная, сбалансированная, с четкой иерархией. Учитывай "правило третей".
+
+- **Типографика:** Используй не более 2-3 шрифтов. Контрастные сочетания размеров для заголовков и тела текста. Выравнивание по сетке.
+
+- **Цвет:** Предлагай гармоничные палитры. Учитывай, что продукт будет печататься (избегай чисто "цифровых" неоновых цветов). Предлагай много графики ты офигенно рисуешь графику графические элементы.
+
+- **Белое пространство:** Используй его активно! Поля, отступы — это признак качественного дизайна.
+
+- **Печатные особенности:** Мысли категориями листов (A4, A5, A6), оборотов (лицевая/тыльная сторона), плотности бумаги.
+
+**ФОРМАТ ОТВЕТА:**
+
+Сгенерируй визуальный макет, который строго соответствует предоставленному пользователем описанию. Макет должен выглядеть как готовый к отправке в типографию эскиз.`;
+
+// Функция для конвертации изображения в base64
+function convertImageToBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            resolve(reader.result);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
+
 // Функция для очистки localStorage и текстового поля (кнопка "Новый")
 function clearAll() {
     const codeKey = `poligraf-last-code-${userId}`;
@@ -429,6 +491,10 @@ function clearAll() {
     
     commentInput.value = '';
     resultContent.innerHTML = '';
+    uploadedImageBase64 = null;
+    if (imageInput) {
+        imageInput.value = '';
+    }
     
     console.log('✅ Cleared all saved data');
     tg.HapticFeedback.impactOccurred('light');
@@ -460,11 +526,12 @@ async function sendToV0(prompt) {
             console.error('resultArea not found for loading overlay');
         }
 
+        // Добавляем системный промпт в начало каждого запроса
+        let enhancedPrompt = SYSTEM_PROMPT + '\n\n' + prompt;
+        
         // Упрощенная логика: если есть сохраненная разметка - используем как референс
         const htmlKey = `poligraf-last-html-${userId}`;
         const lastHTML = localStorage.getItem(htmlKey);
-        
-        let enhancedPrompt = prompt;
         
         // Если есть сохраненная разметка - используем её как референс
         if (lastHTML && lastHTML.length > 100) {
@@ -481,8 +548,8 @@ async function sendToV0(prompt) {
                     ? lastHTML.substring(0, maxHtmlLength) + '\n<!-- ... (HTML truncated) -->'
                     : lastHTML;
                 
-                // Формируем промпт: референс (разметка) + новый промпт из поля
-                enhancedPrompt = `Here is a reference of the current page (HTML markup):
+                // Формируем промпт: системный промпт + референс (разметка) + новый промпт из поля
+                enhancedPrompt = SYSTEM_PROMPT + `\n\nHere is a reference of the current page (HTML markup):
 
 \`\`\`html
 ${truncatedHTML}
@@ -506,6 +573,26 @@ Please return the complete updated React/TSX component code that implements this
                 console.log('  - Saved HTML exists but too short:', lastHTML.length);
             }
         }
+        
+        // Формируем контент сообщения (может быть строкой или массивом с текстом и изображением)
+        let messageContent = enhancedPrompt;
+        
+        // Если есть загруженное изображение, формируем массив с текстом и изображением
+        if (uploadedImageBase64) {
+            messageContent = [
+                {
+                    type: 'text',
+                    text: enhancedPrompt
+                },
+                {
+                    type: 'image_url',
+                    image_url: {
+                        url: uploadedImageBase64
+                    }
+                }
+            ];
+            console.log('✅ Image attached to request');
+        }
 
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 55000);
@@ -515,7 +602,10 @@ Please return the complete updated React/TSX component code that implements this
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ prompt: enhancedPrompt }),
+            body: JSON.stringify({ 
+                prompt: enhancedPrompt,
+                image: uploadedImageBase64 || null
+            }),
             signal: controller.signal
         });
         
@@ -636,6 +726,29 @@ if (newButton) {
     });
 } else {
     console.error('Cannot add event listener: newButton is null');
+}
+
+// Обработчик кнопки загрузки изображения
+if (imageUploadButton && imageInput) {
+    imageUploadButton.addEventListener('click', () => {
+        imageInput.click();
+    });
+    
+    imageInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            try {
+                uploadedImageBase64 = await convertImageToBase64(file);
+                console.log('✅ Image loaded:', file.name, 'Size:', file.size);
+                tg.HapticFeedback.impactOccurred('light');
+            } catch (error) {
+                console.error('Error loading image:', error);
+                tg.HapticFeedback.notificationOccurred('error');
+            }
+        }
+    });
+} else {
+    console.error('Cannot add event listener: imageUploadButton or imageInput is null');
 }
 
 // Загружаем сохраненный промпт и разметку при старте
