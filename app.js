@@ -11,10 +11,8 @@ const commentInput = document.getElementById('commentInput');
 const sendButton = document.getElementById('sendButton');
 
 // Конфигурация API (будет использоваться backend endpoint для безопасности)
-// ⚠️ ВАЖНО: Замените на URL вашего backend после настройки!
-// Для GitHub Pages нужен внешний backend (Vercel/Netlify), так как GitHub Pages не поддерживает serverless functions
-const API_ENDPOINT = 'https://your-backend.vercel.app/api/generate'; // Замените на ваш URL!
-// Или для локального тестирования: 'http://localhost:3000/api/generate'
+// Backend развернут на Vercel
+const API_ENDPOINT = 'https://poligraf-black.vercel.app/api/generate';
 
 // История результатов (для отображения всех результатов в одном проекте)
 let resultsHistory = [];
