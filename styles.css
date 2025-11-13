@@ -82,14 +82,20 @@ body {
     border: none;
 }
 
-.code-toggle-button {
+.result-buttons {
+    display: flex;
+    gap: 8px;
     margin-bottom: 8px;
-    padding: 6px 12px;
+}
+
+.code-toggle-button {
+    flex: 1;
+    padding: 8px 12px;
     background: var(--tg-theme-secondary-bg-color, #f0f0f0);
     color: var(--tg-theme-text-color, #000000);
     border: 1px solid var(--tg-theme-hint-color, #e0e0e0);
     border-radius: 6px;
-    font-size: 12px;
+    font-size: 13px;
     cursor: pointer;
     font-family: inherit;
     transition: opacity 0.2s;

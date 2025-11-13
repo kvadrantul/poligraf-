@@ -17,6 +17,37 @@ const API_ENDPOINT = 'https://poligraf-black.vercel.app/api/generate';
 // История результатов (для отображения всех результатов в одном проекте)
 let resultsHistory = [];
 
+// Функция для сохранения результата в localStorage
+function saveToHistory(code) {
+    try {
+        const history = JSON.parse(localStorage.getItem('poligraf-history') || '[]');
+        const historyItem = {
+            id: Date.now(),
+            code: code,
+            timestamp: new Date().toISOString()
+        };
+        history.unshift(historyItem); // Добавляем в начало
+        // Ограничиваем историю 50 последними элементами
+        if (history.length > 50) {
+            history = history.slice(0, 50);
+        }
+        localStorage.setItem('poligraf-history', JSON.stringify(history));
+    } catch (error) {
+        console.error('Ошибка сохранения истории:', error);
+    }
+}
+
+// Функция для загрузки истории из localStorage
+function loadHistory() {
+    try {
+        const history = JSON.parse(localStorage.getItem('poligraf-history') || '[]');
+        return history;
+    } catch (error) {
+        console.error('Ошибка загрузки истории:', error);
+        return [];
+    }
+}
+
 // Функция для обработки импортов в коде
 function processImports(code) {
     let processedCode = code;
@@ -245,11 +276,25 @@ function displayResult(result) {
         const renderContainer = document.createElement('div');
         renderContainer.className = 'react-render-container';
         
+        // Кнопки управления
+        const buttonsContainer = document.createElement('div');
+        buttonsContainer.className = 'result-buttons';
+        
         // Кнопка для показа/скрытия кода
         const codeToggle = document.createElement('button');
         codeToggle.className = 'code-toggle-button';
-        codeToggle.textContent = '📄 Показать код';
+        codeToggle.textContent = '📄 Код';
         let codeVisible = false;
+        
+        // Кнопка для открытия в v0.dev (копирует промпт)
+        const openInV0Button = document.createElement('button');
+        openInV0Button.className = 'code-toggle-button';
+        openInV0Button.textContent = '🔗 Открыть в v0.dev';
+        openInV0Button.onclick = () => {
+            // Открываем v0.dev в новой вкладке
+            window.open('https://v0.dev', '_blank');
+            tg.HapticFeedback.impactOccurred('light');
+        };
         
         const codeBlock = document.createElement('pre');
         codeBlock.className = 'code-block';
@@ -259,15 +304,21 @@ function displayResult(result) {
         codeToggle.onclick = () => {
             codeVisible = !codeVisible;
             codeBlock.style.display = codeVisible ? 'block' : 'none';
-            codeToggle.textContent = codeVisible ? '👁️ Скрыть код' : '📄 Показать код';
+            codeToggle.textContent = codeVisible ? '👁️ Скрыть' : '📄 Код';
         };
         
-        resultItem.appendChild(codeToggle);
+        buttonsContainer.appendChild(codeToggle);
+        buttonsContainer.appendChild(openInV0Button);
+        
+        resultItem.appendChild(buttonsContainer);
         resultItem.appendChild(renderContainer);
         resultItem.appendChild(codeBlock);
         
         // Пытаемся отрендерить компонент
         renderReactComponent(codeText, renderContainer);
+        
+        // Сохраняем в историю localStorage
+        saveToHistory(codeText);
     } else {
         // Обычный текст
         const textElement = document.createElement('div');
