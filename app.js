@@ -398,18 +398,108 @@ function displayResult(result) {
         resultItem.appendChild(renderContainer);
         renderReactComponent(codeText, renderContainer);
     } else {
-        // Если это HTML разметка, пытаемся обернуть её в React компонент
+        // Если это HTML разметка, вставляем напрямую в iframe
         if (codeText.trim().startsWith('<') && codeText.includes('</')) {
-            console.log('⚠️ Received HTML instead of React code, wrapping in React component');
-            const wrappedCode = `export default function Component() {
-  return (
-    ${codeText}
-  );
-}`;
+            console.log('⚠️ Received HTML instead of React code, rendering directly in iframe');
+            
             const renderContainer = document.createElement('div');
             renderContainer.className = 'react-render-container';
             resultItem.appendChild(renderContainer);
-            renderReactComponent(wrappedCode, renderContainer);
+            
+            // Создаем iframe и вставляем HTML напрямую
+            try {
+                renderContainer.innerHTML = '';
+                
+                const iframe = document.createElement('iframe');
+                iframe.className = 'react-iframe';
+                iframe.style.width = '100%';
+                iframe.style.height = '100%';
+                iframe.style.border = 'none';
+                iframe.style.margin = '0';
+                iframe.style.padding = '0';
+                iframe.style.backgroundColor = 'transparent';
+                renderContainer.appendChild(iframe);
+                
+                iframe.onload = () => {
+                    try {
+                        const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                        
+                        // Если это полный HTML документ, используем его как есть
+                        if (codeText.includes('<!DOCTYPE') || codeText.includes('<html')) {
+                            iframeDoc.open();
+                            iframeDoc.write(codeText);
+                            iframeDoc.close();
+                        } else {
+                            // Если это только фрагмент, оборачиваем в HTML структуру
+                            const fullHTML = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body style="margin: 0; padding: 0;">
+    ${codeText}
+</body>
+</html>`;
+                            iframeDoc.open();
+                            iframeDoc.write(fullHTML);
+                            iframeDoc.close();
+                        }
+                        
+                        // Настраиваем высоту iframe
+                        const adjustHeight = () => {
+                            try {
+                                const iframeBody = iframeDoc.body;
+                                if (iframeBody) {
+                                    const height = Math.max(
+                                        iframeBody.scrollHeight,
+                                        iframeBody.offsetHeight,
+                                        iframeDoc.documentElement.scrollHeight,
+                                        iframeDoc.documentElement.offsetHeight
+                                    );
+                                    iframe.style.height = height + 'px';
+                                }
+                            } catch (e) {
+                                // Игнорируем ошибки доступа к iframe
+                            }
+                        };
+                        
+                        setTimeout(adjustHeight, 100);
+                        setTimeout(adjustHeight, 500);
+                        setTimeout(adjustHeight, 1000);
+                        
+                        const observer = new MutationObserver(adjustHeight);
+                        if (iframeDoc.body) {
+                            observer.observe(iframeDoc.body, {
+                                childList: true,
+                                subtree: true,
+                                attributes: true
+                            });
+                        }
+                        
+                        console.log('✅ HTML rendered in iframe');
+                    } catch (error) {
+                        console.error('Ошибка рендеринга HTML в iframe:', error);
+                        renderContainer.innerHTML = `
+                            <div class="error-message">
+                                <strong>Ошибка рендеринга HTML:</strong><br>
+                                ${error.message}
+                            </div>
+                        `;
+                    }
+                };
+                
+                iframe.src = 'about:blank';
+            } catch (error) {
+                console.error('Ошибка создания iframe для HTML:', error);
+                renderContainer.innerHTML = `
+                    <div class="error-message">
+                        <strong>Ошибка рендеринга:</strong><br>
+                        ${error.message}
+                    </div>
+                `;
+            }
         } else {
             // Если это не HTML и не React, показываем как текст
             const textElement = document.createElement('div');
