@@ -684,7 +684,13 @@ async function sendToV0(prompt) {
         const lastHTML = localStorage.getItem(htmlKey);
         
         // Если режим полиграфии включен, добавляем системный промпт в начало
-        let userPrompt = polygraphyModeEnabled ? SYSTEM_PROMPT + '\n\n' : '';
+        let userPrompt = '';
+        if (polygraphyModeEnabled) {
+            userPrompt = SYSTEM_PROMPT + '\n\n';
+            console.log('✅ System prompt added (polygraphy mode enabled)');
+        } else {
+            console.log('ℹ️ System prompt disabled (polygraphy mode off)');
+        }
         
         // Если есть сохраненная разметка - используем её как референс
         if (lastHTML && lastHTML.length > 100) {
@@ -712,7 +718,7 @@ ${truncatedHTML}
                 
                 console.log('✅ Using saved HTML as reference');
                 console.log('  - HTML length:', truncatedHTML.length);
-                console.log('  - Prompt:', prompt);
+                console.log('  - User prompt:', prompt);
             } else {
                 console.warn('⚠️ Saved HTML appears invalid, ignoring it');
                 // Если HTML невалидный, просто добавляем промпт пользователя
@@ -738,6 +744,14 @@ ${truncatedHTML}
             userPrompt += '\n\nВерни ТОЛЬКО код React/TSX компонента, без текстовых объяснений.';
             console.log('✅ Added React code instruction (polygraphy mode enabled)');
         }
+        
+        // Логируем финальную структуру промпта для отладки
+        console.log('📋 Final prompt structure:');
+        console.log('  - Length:', userPrompt.length);
+        console.log('  - Preview (first 500 chars):', userPrompt.substring(0, 500));
+        console.log('  - Has system prompt:', userPrompt.includes('веб дизайнер элитный полиграфии'));
+        console.log('  - Has HTML reference:', userPrompt.includes('возьми за основу'));
+        console.log('  - Has user prompt:', userPrompt.includes(prompt));
 
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 90000); // Увеличено до 90 секунд
