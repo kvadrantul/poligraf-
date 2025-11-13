@@ -163,6 +163,40 @@ function renderReactComponent(codeText, container) {
                 iframeDoc.open();
                 iframeDoc.write(htmlContent);
                 iframeDoc.close();
+                
+                // Автоматически подстраиваем высоту iframe под контент
+                const adjustHeight = () => {
+                    try {
+                        const iframeBody = iframeDoc.body;
+                        const iframeRoot = iframeDoc.getElementById('root');
+                        if (iframeBody && iframeRoot) {
+                            const height = Math.max(
+                                iframeBody.scrollHeight,
+                                iframeBody.offsetHeight,
+                                iframeRoot.scrollHeight,
+                                iframeRoot.offsetHeight
+                            );
+                            iframe.style.height = height + 'px';
+                        }
+                    } catch (e) {
+                        // Игнорируем ошибки доступа к iframe
+                    }
+                };
+                
+                // Подстраиваем высоту после загрузки и периодически
+                setTimeout(adjustHeight, 100);
+                setTimeout(adjustHeight, 500);
+                setTimeout(adjustHeight, 1000);
+                
+                // Наблюдаем за изменениями размера
+                const observer = new MutationObserver(adjustHeight);
+                if (iframeDoc.body) {
+                    observer.observe(iframeDoc.body, {
+                        childList: true,
+                        subtree: true,
+                        attributes: true
+                    });
+                }
 
             } catch (error) {
                 console.error('Ошибка рендеринга в iframe:', error);
