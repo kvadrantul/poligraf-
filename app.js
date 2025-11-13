@@ -411,8 +411,38 @@ async function sendToV0(prompt) {
         let enhancedPrompt = prompt;
         
         // Если это итерация - добавляем контекст предыдущего кода
-        if (isIteration && history.length > 0) {
-            const lastCode = history[0].code; // Последний сгенерированный код
+        // Сначала пробуем из истории, потом из проекта
+        if (isIteration) {
+            let lastCode = '';
+            
+            // Пробуем получить из истории
+            if (history.length > 0) {
+                lastCode = history[0].code;
+            }
+            
+            // Если нет в истории, пробуем загрузить из проекта
+            if (!lastCode || lastCode.length === 0) {
+                try {
+                    const stored = localStorage.getItem(`v0-project-${userId}`);
+                    if (stored) {
+                        const { projectId, chatId } = JSON.parse(stored);
+                        if (projectId && chatId) {
+                            const contentResponse = await fetch(`${API_GET_PROJECT_CONTENT}?projectId=${projectId}&chatId=${chatId}`);
+                            if (contentResponse.ok) {
+                                const contentData = await contentResponse.json();
+                                if (contentData.hasContent && contentData.code) {
+                                    lastCode = contentData.code;
+                                    // Сохраняем в историю для будущего использования
+                                    saveToHistory(lastCode);
+                                }
+                            }
+                        }
+                    }
+                } catch (loadError) {
+                    console.warn('Failed to load code from project:', loadError);
+                }
+            }
+            
             if (lastCode && lastCode.length > 0) {
                 console.log('Detected iteration, adding context from previous code');
                 // Ограничиваем размер предыдущего кода (чтобы не превысить лимиты токенов)
