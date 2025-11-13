@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Poligraf Mini App</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Поле для отображения результата -->
+        <div class="result-area">
+            <div class="result-content" id="resultContent">
+                <p class="placeholder">Результат будет отображаться здесь</p>
+            </div>
+        </div>
+
+        <!-- Поле для ввода комментария -->
+        <div class="input-area">
+            <textarea 
+                id="commentInput" 
+                class="comment-input" 
+                placeholder="Введите ваш комментарий..."
+                rows="3"
+            ></textarea>
+            <button id="sendButton" class="send-button">
+                Отправить
+            </button>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
+
