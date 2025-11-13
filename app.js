@@ -102,6 +102,24 @@ function processImports(code) {
 // Функция для сохранения кода и HTML разметки в localStorage
 function saveRenderedHTML(iframe, codeText) {
     try {
+        // Валидация: не сохраняем явно пустой или некорректный код
+        if (!codeText || codeText.trim().length < 50) {
+            console.warn('⚠️ Code too short or empty, not saving');
+            return;
+        }
+        
+        // Проверяем, что код содержит хотя бы базовые React элементы
+        const hasValidReactContent = codeText.includes('return') || 
+                                     codeText.includes('function') || 
+                                     codeText.includes('const') ||
+                                     codeText.includes('className') ||
+                                     codeText.includes('div');
+        
+        if (!hasValidReactContent) {
+            console.warn('⚠️ Code does not appear to be valid React, not saving');
+            return;
+        }
+        
         // Сохраняем исходный код для рендеринга
         const codeKey = `poligraf-last-code-${userId}`;
         localStorage.setItem(codeKey, codeText);
@@ -112,9 +130,15 @@ function saveRenderedHTML(iframe, codeText) {
             if (iframeDoc && iframeDoc.body) {
                 // Получаем HTML из body (упрощенная версия без скриптов)
                 const bodyHTML = iframeDoc.body.innerHTML;
-                const htmlKey = `poligraf-last-html-${userId}`;
-                localStorage.setItem(htmlKey, bodyHTML);
-                console.log('✅ Saved HTML reference, length:', bodyHTML.length);
+                
+                // Проверяем, что HTML не пустой (не черный экран)
+                if (bodyHTML && bodyHTML.trim().length > 100) {
+                    const htmlKey = `poligraf-last-html-${userId}`;
+                    localStorage.setItem(htmlKey, bodyHTML);
+                    console.log('✅ Saved HTML reference, length:', bodyHTML.length);
+                } else {
+                    console.warn('⚠️ HTML too short or empty, not saving');
+                }
             }
         } catch (htmlError) {
             console.warn('Could not save HTML reference:', htmlError);
@@ -289,10 +313,21 @@ function renderReactComponent(codeText, container) {
 
 // Функция для отображения результата
 function displayResult(result) {
+    // Полностью очищаем предыдущий контент
+    resultContent.innerHTML = '';
+    
     const resultItem = document.createElement('div');
     resultItem.className = 'result-item';
     
     const codeText = typeof result === 'string' ? result : (result.code || result.markup || JSON.stringify(result, null, 2));
+    
+    // Валидация: проверяем, что результат не пустой
+    if (!codeText || codeText.trim().length < 10) {
+        console.error('⚠️ Empty or invalid result received');
+        resultContent.innerHTML = '<div class="error-message">Получен пустой результат. Попробуйте еще раз.</div>';
+        return;
+    }
+    
     const isReactCode = codeText.includes('import') || codeText.includes('export') || 
                         codeText.includes('function') || codeText.includes('className') || 
                         codeText.includes('return (') || codeText.includes('React') ||
@@ -310,7 +345,6 @@ function displayResult(result) {
         resultItem.appendChild(textElement);
     }
 
-    resultContent.innerHTML = '';
     resultContent.appendChild(resultItem);
     resultContent.scrollTop = resultContent.scrollHeight;
 }
@@ -376,12 +410,24 @@ async function sendToV0(prompt) {
         
         let enhancedPrompt = prompt;
         
-        // Если есть сохраненный код - ВСЕГДА используем его как основу для правок
-        // Это гарантирует, что мы редактируем существующий компонент, а не создаем новый
-        if (lastCode && lastCode.length > 0) {
+        // Сначала проверяем, является ли это явной НОВОЙ генерацией (не правкой)
+        const newGenerationKeywords = [
+            'создай', 'сделай', 'приглашени', 'свадьб', 'день рождени', 'поздравлени',
+            'create', 'make', 'generate', 'new', 'invitation', 'wedding', 'birthday',
+            'card', 'страниц', 'компонент', 'component', 'форма', 'form'
+        ];
+        
+        const isNewGeneration = newGenerationKeywords.some(keyword => 
+            prompt.toLowerCase().includes(keyword) && 
+            !prompt.toLowerCase().includes('измени') && 
+            !prompt.toLowerCase().includes('прав')
+        );
+        
+        // Если есть сохраненный код И это НЕ новая генерация - используем для правок
+        if (lastCode && lastCode.length > 0 && !isNewGeneration) {
             // Расширенный список ключевых слов для определения правок
             const editKeywords = [
-                'измени', 'прав', 'добавь', 'убери', 'сделай', 'переделай', 
+                'измени', 'прав', 'добавь', 'убери', 'переделай', 
                 'поменяй', 'замени', 'change', 'modify', 'update', 'fix', 
                 'edit', 'color', 'цвет', 'розов', 'зелен', 'красн', 'син',
                 'желт', 'черн', 'бел', 'pink', 'green', 'red', 'blue', 
@@ -395,6 +441,7 @@ async function sendToV0(prompt) {
             console.log('  - Has saved code:', !!lastCode);
             console.log('  - Code length:', lastCode.length);
             console.log('  - User prompt:', prompt);
+            console.log('  - Is new generation:', isNewGeneration);
             console.log('  - Is edit detected:', isEdit);
             
             if (isEdit) {
@@ -444,7 +491,13 @@ Please return the complete updated React/TSX component code. Keep the same struc
                 
                 console.log('User request:', prompt);
                 console.log('Enhanced prompt length:', enhancedPrompt.length);
+            } else {
+                console.log('📝 New generation request (ignoring saved code)');
             }
+        } else if (isNewGeneration) {
+            console.log('🆕 Explicit new generation request detected');
+        } else {
+            console.log('📝 New generation request (no saved code)');
         }
 
         const controller = new AbortController();
