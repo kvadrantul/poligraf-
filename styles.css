@@ -302,6 +302,53 @@ body {
     outline: none;
 }
 
+/* Превью загруженного изображения */
+.image-preview {
+    position: relative;
+    width: 100%;
+    max-width: 200px;
+    margin: 0 auto;
+    border-radius: 12px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.preview-image {
+    width: 100%;
+    height: auto;
+    display: block;
+    object-fit: cover;
+    max-height: 150px;
+}
+
+.remove-image-button {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #ffffff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, opacity 0.2s;
+    backdrop-filter: blur(10px);
+}
+
+.remove-image-button:active {
+    background: rgba(0, 0, 0, 0.9);
+    opacity: 0.8;
+}
+
+.remove-image-button svg {
+    width: 14px;
+    height: 14px;
+}
 
 .send-button-icon {
     background: transparent;

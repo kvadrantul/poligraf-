@@ -12,6 +12,9 @@ const sendButton = document.getElementById('sendButton');
 const newButton = document.getElementById('newButton');
 const imageUploadButton = document.getElementById('imageUploadButton');
 const imageInput = document.getElementById('imageInput');
+const imagePreview = document.getElementById('imagePreview');
+const previewImage = document.getElementById('previewImage');
+const removeImageButton = document.getElementById('removeImageButton');
 const resultArea = document.querySelector('.result-area');
 
 // Переменная для хранения загруженного изображения (base64)
@@ -496,8 +499,31 @@ function clearAll() {
         imageInput.value = '';
     }
     
+    // Скрываем превью изображения
+    if (imagePreview) {
+        imagePreview.style.display = 'none';
+    }
+    
     console.log('✅ Cleared all saved data');
     tg.HapticFeedback.impactOccurred('light');
+}
+
+// Функция для отображения превью изображения
+function showImagePreview(imageBase64) {
+    if (previewImage && imagePreview) {
+        previewImage.src = imageBase64;
+        imagePreview.style.display = 'block';
+    }
+}
+
+// Функция для скрытия превью изображения
+function hideImagePreview() {
+    if (imagePreview) {
+        imagePreview.style.display = 'none';
+    }
+    if (previewImage) {
+        previewImage.src = '';
+    }
 }
 
 // Функция для отправки запроса к v0.dev Model API
@@ -646,6 +672,7 @@ Please return the complete updated React/TSX component code that implements this
             if (imageInput) {
                 imageInput.value = '';
             }
+            hideImagePreview();
             console.log('✅ Image cleared after use');
         }
 
@@ -749,6 +776,7 @@ if (imageUploadButton && imageInput) {
             try {
                 uploadedImageBase64 = await convertImageToBase64(file);
                 console.log('✅ Image loaded:', file.name, 'Size:', file.size);
+                showImagePreview(uploadedImageBase64);
                 tg.HapticFeedback.impactOccurred('light');
             } catch (error) {
                 console.error('Error loading image:', error);
@@ -758,6 +786,21 @@ if (imageUploadButton && imageInput) {
     });
 } else {
     console.error('Cannot add event listener: imageUploadButton or imageInput is null');
+}
+
+// Обработчик кнопки удаления изображения
+if (removeImageButton) {
+    removeImageButton.addEventListener('click', () => {
+        uploadedImageBase64 = null;
+        if (imageInput) {
+            imageInput.value = '';
+        }
+        hideImagePreview();
+        tg.HapticFeedback.impactOccurred('light');
+        console.log('✅ Image removed');
+    });
+} else {
+    console.error('Cannot add event listener: removeImageButton is null');
 }
 
 // Загружаем сохраненный промпт и разметку при старте
