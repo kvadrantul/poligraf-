@@ -387,7 +387,38 @@ async function sendToV0(prompt) {
         resultContent.scrollTop = resultContent.scrollHeight;
 
         // Получаем или создаем проект
-        const { projectId, chatId } = await getOrCreateProject();
+        let projectId, chatId;
+        try {
+            const project = await getOrCreateProject();
+            projectId = project.projectId;
+            chatId = project.chatId;
+        } catch (projectError) {
+            // Если не удалось создать/получить проект, используем старый Model API как fallback
+            console.warn('Failed to get/create project, using Model API fallback:', projectError);
+            
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 55000);
+
+            const response = await fetch(API_GENERATE, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ prompt }),
+                signal: controller.signal
+            });
+
+            clearTimeout(timeoutId);
+
+            if (!response.ok) {
+                throw new Error(`Ошибка: ${response.status} ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            displayResult(data.result || data.code || data.markup || data);
+            tg.HapticFeedback.notificationOccurred('success');
+            return;
+        }
 
         // Отправляем запрос к backend для итерации
         const controller = new AbortController();

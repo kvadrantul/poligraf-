@@ -32,21 +32,58 @@ export default async function handler(req, res) {
         }
 
         // Отправляем сообщение в чат (итерация)
-        // Предполагаемый endpoint (нужно проверить в документации)
-        const iterateResponse = await fetch(
+        // Пробуем разные возможные endpoints
+        const endpoints = [
             `https://api.v0.dev/v1/projects/${projectId}/chats/${chatId}/messages`,
-            {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`,
-                },
-                body: JSON.stringify({
-                    content: prompt,
-                    role: 'user'
-                }),
+            `https://api.v0.dev/v1/projects/${projectId}/chats/${chatId}/iterate`,
+            `https://v0.dev/api/v1/projects/${projectId}/chats/${chatId}/messages`,
+            `https://api.v0.dev/v1/platform/projects/${projectId}/chats/${chatId}/messages`,
+        ];
+
+        let iterateResponse = null;
+        let lastError = null;
+
+        for (const endpoint of endpoints) {
+            try {
+                console.log(`Trying to iterate at: ${endpoint}`);
+                iterateResponse = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`,
+                    },
+                    body: JSON.stringify({
+                        content: prompt,
+                        role: 'user',
+                        message: prompt
+                    }),
+                });
+
+                if (iterateResponse.ok) {
+                    console.log(`Success with endpoint: ${endpoint}`);
+                    break;
+                } else {
+                    const errorText = await iterateResponse.text();
+                    lastError = { endpoint, status: iterateResponse.status, error: errorText };
+                    console.log(`Failed with ${endpoint}:`, lastError);
+                }
+            } catch (err) {
+                lastError = { endpoint, error: err.message };
+                console.log(`Error with ${endpoint}:`, err.message);
+                continue;
             }
-        );
+        }
+
+        if (!iterateResponse || !iterateResponse.ok) {
+            const errorText = lastError ? JSON.stringify(lastError) : 'Unknown error';
+            console.error('v0.dev iterate error:', errorText);
+            
+            return res.status(iterateResponse?.status || 500).json({ 
+                error: 'Failed to iterate',
+                details: lastError,
+                note: 'Возможно, используется неправильный endpoint. Проверьте документацию v0 Platform API.'
+            });
+        }
 
         if (!iterateResponse.ok) {
             const errorText = await iterateResponse.text();

@@ -30,18 +30,56 @@ export default async function handler(req, res) {
         }
 
         // Создаем проект через v0 Platform API
-        // Предполагаемый endpoint (нужно проверить в документации)
-        const createProjectResponse = await fetch('https://api.v0.dev/v1/projects', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`,
-            },
-            body: JSON.stringify({
-                name: `Poligraf Project - User ${userId}`,
-                description: 'Telegram Mini App project'
-            }),
-        });
+        // Пробуем разные возможные endpoints
+        const endpoints = [
+            'https://api.v0.dev/v1/projects',
+            'https://v0.dev/api/v1/projects',
+            'https://api.v0.dev/v1/platform/projects',
+        ];
+
+        let createProjectResponse = null;
+        let lastError = null;
+
+        for (const endpoint of endpoints) {
+            try {
+                console.log(`Trying to create project at: ${endpoint}`);
+                createProjectResponse = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`,
+                    },
+                    body: JSON.stringify({
+                        name: `Poligraf Project - User ${userId}`,
+                        description: 'Telegram Mini App project'
+                    }),
+                });
+
+                if (createProjectResponse.ok) {
+                    console.log(`Success with endpoint: ${endpoint}`);
+                    break;
+                } else {
+                    const errorText = await createProjectResponse.text();
+                    lastError = { endpoint, status: createProjectResponse.status, error: errorText };
+                    console.log(`Failed with ${endpoint}:`, lastError);
+                }
+            } catch (err) {
+                lastError = { endpoint, error: err.message };
+                console.log(`Error with ${endpoint}:`, err.message);
+                continue;
+            }
+        }
+
+        if (!createProjectResponse || !createProjectResponse.ok) {
+            const errorText = lastError ? JSON.stringify(lastError) : 'Unknown error';
+            console.error('v0.dev create project error:', errorText);
+            
+            return res.status(createProjectResponse?.status || 500).json({ 
+                error: 'Failed to create project',
+                details: lastError,
+                note: 'Возможно, используется неправильный endpoint. Проверьте документацию v0 Platform API.'
+            });
+        }
 
         if (!createProjectResponse.ok) {
             const errorText = await createProjectResponse.text();
