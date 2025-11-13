@@ -360,71 +360,63 @@ function loadSavedHTML() {
             iframe.style.padding = '0';
             iframe.style.backgroundColor = 'transparent';
             
+            // Вставляем сохраненную HTML в iframe
+            // Используем write() вместо srcdoc для большей совместимости
             iframe.onload = () => {
-                console.log('Iframe loaded with saved HTML');
-                const adjustHeight = () => {
-                    try {
-                        const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-                        if (!iframeDoc) {
-                            console.warn('Cannot access iframe document');
-                            return;
-                        }
-                        
-                        const iframeBody = iframeDoc.body;
-                        const iframeRoot = iframeDoc.getElementById('root');
-                        
-                        console.log('Iframe body exists:', !!iframeBody);
-                        console.log('Iframe root exists:', !!iframeRoot);
-                        
-                        if (iframeBody && iframeRoot) {
-                            const height = Math.max(
-                                iframeBody.scrollHeight,
-                                iframeBody.offsetHeight,
-                                iframeRoot.scrollHeight,
-                                iframeRoot.offsetHeight,
-                                400 // Минимальная высота
-                            );
-                            iframe.style.height = height + 'px';
-                            console.log('Iframe height adjusted to:', height);
-                        } else {
-                            // Если root не найден, используем высоту body
-                            if (iframeBody) {
-                                const height = Math.max(iframeBody.scrollHeight, iframeBody.offsetHeight, 400);
-                                iframe.style.height = height + 'px';
-                                console.log('Iframe height adjusted (body only) to:', height);
-                            }
-                        }
-                    } catch (e) {
-                        console.error('Error adjusting iframe height:', e);
+                try {
+                    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                    if (!iframeDoc) {
+                        console.error('Cannot access iframe document');
+                        return;
                     }
-                };
-                
-                setTimeout(adjustHeight, 100);
-                setTimeout(adjustHeight, 500);
-                setTimeout(adjustHeight, 1000);
-                setTimeout(adjustHeight, 2000);
+                    
+                    console.log('Writing HTML to iframe via write(), length:', savedHTML.length);
+                    iframeDoc.open();
+                    iframeDoc.write(savedHTML);
+                    iframeDoc.close();
+                    console.log('✅ HTML written to iframe');
+                    
+                    // После записи HTML, настраиваем высоту
+                    setTimeout(() => {
+                        const adjustHeight = () => {
+                            try {
+                                const iframeBody = iframeDoc.body;
+                                const iframeRoot = iframeDoc.getElementById('root');
+                                
+                                console.log('Adjusting height - body exists:', !!iframeBody, 'root exists:', !!iframeRoot);
+                                
+                                if (iframeBody && iframeRoot) {
+                                    const height = Math.max(
+                                        iframeBody.scrollHeight,
+                                        iframeBody.offsetHeight,
+                                        iframeRoot.scrollHeight,
+                                        iframeRoot.offsetHeight,
+                                        400
+                                    );
+                                    iframe.style.height = height + 'px';
+                                    console.log('Iframe height adjusted to:', height);
+                                } else if (iframeBody) {
+                                    const height = Math.max(iframeBody.scrollHeight, iframeBody.offsetHeight, 400);
+                                    iframe.style.height = height + 'px';
+                                    console.log('Iframe height adjusted (body only) to:', height);
+                                }
+                            } catch (e) {
+                                console.error('Error adjusting iframe height:', e);
+                            }
+                        };
+                        
+                        adjustHeight();
+                        setTimeout(adjustHeight, 500);
+                        setTimeout(adjustHeight, 1000);
+                        setTimeout(adjustHeight, 2000);
+                    }, 100);
+                } catch (writeError) {
+                    console.error('Error writing to iframe:', writeError);
+                }
             };
             
-            // Вставляем сохраненную HTML в iframe через srcdoc
-            try {
-                iframe.srcdoc = savedHTML;
-                console.log('Set iframe srcdoc, length:', savedHTML.length);
-            } catch (srcdocError) {
-                console.error('Error setting srcdoc:', srcdocError);
-                // Fallback: используем write
-                iframe.onload = () => {
-                    try {
-                        const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-                        iframeDoc.open();
-                        iframeDoc.write(savedHTML);
-                        iframeDoc.close();
-                        console.log('Wrote HTML to iframe via write()');
-                    } catch (writeError) {
-                        console.error('Error writing to iframe:', writeError);
-                    }
-                };
-                iframe.src = 'about:blank';
-            }
+            // Загружаем пустую страницу, чтобы iframe был готов для записи
+            iframe.src = 'about:blank';
             
             renderContainer.appendChild(iframe);
             resultItem.appendChild(renderContainer);
