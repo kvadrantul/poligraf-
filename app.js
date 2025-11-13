@@ -573,46 +573,79 @@ async function sendToV0(prompt) {
         // Отображаем результат
         displayResult(generatedCode);
 
-        // Создаем проект при первом использовании (если нет)
-        // НЕ сохраняем код через чат автоматически - это создает мусор в чате
-        // Проект нужен только для загрузки контента при старте и для будущих итераций через Platform API
+        // Сохраняем код в проект (асинхронно, не блокируя UI)
+        // Это нужно для загрузки контента при следующем открытии приложения
         (async () => {
             try {
+                let projectId, chatId;
                 const stored = localStorage.getItem(`v0-project-${userId}`);
+                
                 if (stored) {
-                    // Проект уже есть - ничего не делаем
-                    return;
+                    // Проект уже есть - используем его
+                    const projectData = JSON.parse(stored);
+                    projectId = projectData.projectId;
+                    chatId = projectData.chatId;
+                } else {
+                    // Создаем проект если его нет
+                    console.log('Creating project for first-time user');
+                    try {
+                        const projectResponse = await fetch(API_CREATE_PROJECT, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({ userId }),
+                        });
+                        
+                        if (projectResponse.ok) {
+                            const projectData = await projectResponse.json();
+                            projectId = projectData.projectId;
+                            chatId = projectData.chatId;
+                            
+                            if (projectId && chatId) {
+                                // Сохраняем в localStorage
+                                localStorage.setItem(`v0-project-${userId}`, JSON.stringify({ projectId, chatId }));
+                                const projectsCount = parseInt(localStorage.getItem('v0-projects-count') || '0');
+                                localStorage.setItem('v0-projects-count', String(projectsCount + 1));
+                                console.log('Project created and saved:', projectId);
+                            }
+                        }
+                    } catch (createError) {
+                        console.warn('Error creating project:', createError);
+                        return; // Не продолжаем если проект не создан
+                    }
                 }
                 
-                // Создаем проект только если его нет
-                console.log('Creating project for first-time user');
-                try {
-                    const projectResponse = await fetch(API_CREATE_PROJECT, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({ userId }),
-                    });
-                    
-                    if (projectResponse.ok) {
-                        const projectData = await projectResponse.json();
-                        const projectId = projectData.projectId;
-                        const chatId = projectData.chatId;
+                // Сохраняем сгенерированный код в проект
+                if (projectId && chatId && generatedCode) {
+                    console.log('Saving generated code to project:', projectId);
+                    try {
+                        // Используем простой формат - просто отправляем код как сообщение пользователя
+                        // Это сохранит его в истории проекта без ожидания ответа AI
+                        const saveResponse = await fetch(API_SAVE_TO_PROJECT, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                projectId: projectId,
+                                chatId: chatId,
+                                code: generatedCode
+                            }),
+                        });
                         
-                        if (projectId && chatId) {
-                            // Сохраняем в localStorage
-                            localStorage.setItem(`v0-project-${userId}`, JSON.stringify({ projectId, chatId }));
-                            const projectsCount = parseInt(localStorage.getItem('v0-projects-count') || '0');
-                            localStorage.setItem('v0-projects-count', String(projectsCount + 1));
-                            console.log('Project created and saved:', projectId);
+                        if (saveResponse.ok) {
+                            console.log('Code saved to project successfully');
+                        } else {
+                            console.warn('Failed to save code to project:', await saveResponse.text());
                         }
+                    } catch (saveError) {
+                        console.warn('Error saving code to project:', saveError);
+                        // Не критично - код уже отображен, просто не сохранится в проект
                     }
-                } catch (createError) {
-                    console.warn('Error creating project:', createError);
                 }
             } catch (error) {
-                console.warn('Error in project creation:', error);
+                console.warn('Error in project save:', error);
             }
         })();
 
@@ -709,34 +742,40 @@ async function loadProjectOnStartup() {
 
         // Загружаем контент проекта
         console.log('Loading project content on startup:', projectId, chatId);
-        const response = await fetch(`${API_GET_PROJECT_CONTENT}?projectId=${projectId}&chatId=${chatId}`);
-        
-        console.log('Project content response status:', response.status);
-        
-        if (response.ok) {
-            const data = await response.json();
-            console.log('Project content data:', { 
-                hasContent: data.hasContent, 
-                codeLength: data.code?.length || 0,
-                messagesCount: data.messagesCount 
-            });
+        try {
+            const response = await fetch(`${API_GET_PROJECT_CONTENT}?projectId=${projectId}&chatId=${chatId}`);
             
-            if (data.hasContent && data.code && data.code.length > 0) {
-                // Есть контент - отображаем его
-                console.log('Project has content, displaying it, length:', data.code.length);
-                displayResult(data.code);
+            console.log('Project content response status:', response.status);
+            
+            if (response.ok) {
+                const data = await response.json();
+                console.log('Project content data:', { 
+                    hasContent: data.hasContent, 
+                    codeLength: data.code?.length || 0,
+                    messagesCount: data.messagesCount,
+                    codePreview: data.code?.substring(0, 100) || 'no code'
+                });
                 
-                // Сохраняем в историю для использования в итерациях
-                saveToHistory(data.code);
+                if (data.hasContent && data.code && data.code.length > 0) {
+                    // Есть контент - отображаем его
+                    console.log('Project has content, displaying it, length:', data.code.length);
+                    displayResult(data.code);
+                    
+                    // Сохраняем в историю для использования в итерациях
+                    saveToHistory(data.code);
+                } else {
+                    // Нет контента - оставляем пустым
+                    console.log('Project exists but has no content (hasContent:', data.hasContent, ', codeLength:', data.code?.length || 0, ')');
+                    resultContent.innerHTML = '';
+                }
             } else {
-                // Нет контента - оставляем пустым
-                console.log('Project exists but has no content');
+                const errorText = await response.text().catch(() => 'Unknown error');
+                console.warn('Failed to load project content:', response.status, errorText);
+                // При ошибке оставляем пустым
                 resultContent.innerHTML = '';
             }
-        } else {
-            const errorText = await response.text().catch(() => 'Unknown error');
-            console.warn('Failed to load project content:', response.status, errorText);
-            // При ошибке оставляем пустым
+        } catch (fetchError) {
+            console.error('Error fetching project content:', fetchError);
             resultContent.innerHTML = '';
         }
     } catch (error) {

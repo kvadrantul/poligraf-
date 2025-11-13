@@ -59,21 +59,52 @@ export default async function handler(req, res) {
         const messagesData = await getMessagesResponse.json();
         const messages = messagesData.messages || messagesData.data?.messages || [];
         
+        console.log('Total messages:', messages.length);
+        
         // Ищем последнее сообщение от assistant с кодом
         const assistantMessages = messages
             .filter(msg => msg.role === 'assistant')
             .reverse();
         
         let lastCode = '';
+        let hasContent = false;
+        
         if (assistantMessages.length > 0) {
+            // Есть сообщения от assistant - берем последнее
             const lastMessage = assistantMessages[0];
             lastCode = lastMessage.content || '';
+            hasContent = lastCode.length > 0;
+            console.log('Found assistant message with code, length:', lastCode.length);
+        } else {
+            // Нет сообщений от assistant - ищем код в сообщениях пользователя
+            // (когда код был сохранен через save-to-project)
+            const userMessages = messages
+                .filter(msg => msg.role === 'user')
+                .reverse();
+            
+            for (const msg of userMessages) {
+                const content = msg.content || '';
+                // Ищем код в markdown блоках
+                const codeBlockMatch = content.match(/```[\w]*\n?([\s\S]*?)```/);
+                if (codeBlockMatch && codeBlockMatch[1]) {
+                    lastCode = codeBlockMatch[1].trim();
+                    hasContent = lastCode.length > 0;
+                    console.log('Found code in user message, length:', lastCode.length);
+                    break;
+                } else if (content.length > 100 && (content.includes('export') || content.includes('function') || content.includes('const'))) {
+                    // Похоже на код без markdown блоков
+                    lastCode = content.trim();
+                    hasContent = lastCode.length > 0;
+                    console.log('Found code-like content in user message, length:', lastCode.length);
+                    break;
+                }
+            }
         }
 
         return res.status(200).json({
             code: lastCode,
             messagesCount: messages.length,
-            hasContent: lastCode.length > 0
+            hasContent: hasContent
         });
 
     } catch (error) {
