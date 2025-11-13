@@ -91,13 +91,14 @@ function renderReactComponent(codeText, container) {
         // Очищаем контейнер
         container.innerHTML = '';
 
-        // Создаем iframe для изоляции React компонента
+        // Создаем iframe для изоляции React компонента (растягиваем на всю область)
         const iframe = document.createElement('iframe');
         iframe.className = 'react-iframe';
         iframe.style.width = '100%';
         iframe.style.height = '100%';
         iframe.style.border = 'none';
-        iframe.style.minHeight = '400px';
+        iframe.style.margin = '0';
+        iframe.style.padding = '0';
         iframe.style.backgroundColor = 'transparent';
         container.appendChild(iframe);
 
@@ -272,47 +273,11 @@ function displayResult(result) {
                         codeText.includes('jsx') || codeText.includes('tsx');
     
     if (isReactCode) {
-        // Создаем контейнер для рендеринга React компонента
+        // Создаем контейнер для рендеринга React компонента (без кнопок, только визуальный контент)
         const renderContainer = document.createElement('div');
         renderContainer.className = 'react-render-container';
         
-        // Кнопки управления
-        const buttonsContainer = document.createElement('div');
-        buttonsContainer.className = 'result-buttons';
-        
-        // Кнопка для показа/скрытия кода
-        const codeToggle = document.createElement('button');
-        codeToggle.className = 'code-toggle-button';
-        codeToggle.textContent = '📄 Код';
-        let codeVisible = false;
-        
-        // Кнопка для открытия в v0.dev (копирует промпт)
-        const openInV0Button = document.createElement('button');
-        openInV0Button.className = 'code-toggle-button';
-        openInV0Button.textContent = '🔗 Открыть в v0.dev';
-        openInV0Button.onclick = () => {
-            // Открываем v0.dev в новой вкладке
-            window.open('https://v0.dev', '_blank');
-            tg.HapticFeedback.impactOccurred('light');
-        };
-        
-        const codeBlock = document.createElement('pre');
-        codeBlock.className = 'code-block';
-        codeBlock.style.display = 'none';
-        codeBlock.textContent = codeText;
-        
-        codeToggle.onclick = () => {
-            codeVisible = !codeVisible;
-            codeBlock.style.display = codeVisible ? 'block' : 'none';
-            codeToggle.textContent = codeVisible ? '👁️ Скрыть' : '📄 Код';
-        };
-        
-        buttonsContainer.appendChild(codeToggle);
-        buttonsContainer.appendChild(openInV0Button);
-        
-        resultItem.appendChild(buttonsContainer);
         resultItem.appendChild(renderContainer);
-        resultItem.appendChild(codeBlock);
         
         // Пытаемся отрендерить компонент
         renderReactComponent(codeText, renderContainer);
