@@ -693,11 +693,13 @@ async function sendToV0(prompt) {
             console.error('resultArea not found for loading overlay');
         }
 
-        // Формируем промпт пользователя (без системного промпта)
+        // Формируем промпт пользователя
         const htmlKey = `poligraf-last-html-${userId}`;
         const lastHTML = localStorage.getItem(htmlKey);
         
-        let userPrompt = prompt;
+        // Если режим полиграфии включен, добавляем системный промпт в начало
+        let userPrompt = polygraphyModeEnabled ? SYSTEM_PROMPT + '\n\n' : '';
+        userPrompt += prompt;
         
         // Если есть сохраненная разметка - используем её как референс
         if (lastHTML && lastHTML.length > 100) {
@@ -758,7 +760,6 @@ ${truncatedHTML}
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({ 
-                systemPrompt: polygraphyModeEnabled ? SYSTEM_PROMPT : null,
                 userPrompt: userPrompt,
                 image: uploadedImageBase64 || null
             }),

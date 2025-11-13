@@ -82,13 +82,11 @@ export default async function handler(req, res) {
     }
 
     try {
-        const { systemPrompt, userPrompt, image } = req.body;
+        const { userPrompt, image } = req.body;
 
         if (!userPrompt) {
             return res.status(400).json({ error: 'userPrompt is required' });
         }
-        
-        // systemPrompt может быть null, если режим полиграфии выключен
 
         // Получаем API ключ из переменных окружения
         // Можно использовать либо V0_API_KEY (для v0.dev), либо OPENAI_API_KEY (для OpenAI)
@@ -157,7 +155,6 @@ export default async function handler(req, res) {
         } else {
             // Используем v0.dev API
             console.log('Using v0.dev API');
-            console.log('System prompt:', systemPrompt ? `exists (${systemPrompt.length} chars)` : 'null (polygraphy mode disabled)');
             console.log('User prompt length:', userPrompt.length);
             console.log('User prompt preview:', userPrompt.substring(0, 200));
             console.log('Has image:', !!image);
@@ -165,6 +162,7 @@ export default async function handler(req, res) {
             const v0ApiUrl = 'https://api.v0.dev/v1/chat/completions';
 
             // Формируем контент сообщения пользователя (может быть строкой или массивом с текстом и изображением)
+            // Системный промпт уже включен в начало userPrompt на frontend
             let userContent = userPrompt;
             
             // Если есть изображение, формируем массив с текстом и изображением
@@ -184,22 +182,13 @@ export default async function handler(req, res) {
                 console.log('✅ Image attached to v0.dev API request');
             }
             
-            // Формируем сообщения: системный промпт отдельно (если есть), пользовательский промпт отдельно
-            const messages = [];
-            
-            // Добавляем системный промпт только если он передан
-            if (systemPrompt) {
-                messages.push({
-                    role: 'system',
-                    content: systemPrompt
-                });
-            }
-            
-            // Добавляем пользовательское сообщение
-            messages.push({
-                role: 'user',
-                content: userContent
-            });
+            // Формируем сообщения: только пользовательское сообщение (системный промпт уже в начале userPrompt)
+            const messages = [
+                {
+                    role: 'user',
+                    content: userContent
+                }
+            ];
             
             apiResponse = await fetch(v0ApiUrl, {
                 method: 'POST',
