@@ -593,8 +593,17 @@ if (sendButton) {
 }
 
 
-// Загружаем сохраненную HTML при старте
-loadSavedHTML();
+// Обработчик кнопки "Новый"
+if (newButton) {
+    newButton.addEventListener('click', () => {
+        clearAll();
+    });
+} else {
+    console.error('Cannot add event listener: newButton is null');
+}
+
+// Загружаем сохраненный промпт и разметку при старте
+loadSavedPromptAndMarkup();
 
 // Устанавливаем черный фон
 document.body.style.backgroundColor = '#000000';
