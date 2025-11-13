@@ -34,132 +34,70 @@ export default async function handler(req, res) {
             });
         }
 
-        // Отправляем запрос к v0.dev API
-        // Пробуем разные варианты endpoints и методов
-        const endpointConfigs = [
-            // POST запросы
-            {
-                url: 'https://v0.dev/api/v1/prompt',
-                method: 'POST',
-                body: { prompt: prompt },
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`,
-                }
+        // Отправляем запрос к v0.dev API согласно документации
+        // Документация: https://v0.app/docs/api/model
+        // Endpoint: POST https://api.v0.dev/v1/chat/completions
+        const v0ApiUrl = 'https://api.v0.dev/v1/chat/completions';
+
+        console.log('Sending request to v0.dev API:', v0ApiUrl);
+
+        const v0Response = await fetch(v0ApiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`,
             },
-            {
-                url: 'https://api.v0.dev/v1/prompt',
-                method: 'POST',
-                body: { prompt: prompt },
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`,
-                }
-            },
-            {
-                url: 'https://v0.dev/api/v1/generate',
-                method: 'POST',
-                body: { prompt: prompt },
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`,
-                }
-            },
-            // GET запросы с query параметрами
-            {
-                url: `https://v0.dev/api/v1/prompt?prompt=${encodeURIComponent(prompt)}`,
-                method: 'GET',
-                body: null,
-                headers: {
-                    'Authorization': `Bearer ${apiKey}`,
-                }
-            },
-            // Альтернативный формат авторизации
-            {
-                url: 'https://v0.dev/api/v1/prompt',
-                method: 'POST',
-                body: { prompt: prompt },
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-API-Key': apiKey,
-                }
-            },
-            {
-                url: 'https://v0.dev/api/v1/prompt',
-                method: 'POST',
-                body: { prompt: prompt },
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `v1 ${apiKey}`,
-                }
-            },
-        ];
+            body: JSON.stringify({
+                model: 'v0-1.5-md', // Модель для генерации UI компонентов
+                messages: [
+                    {
+                        role: 'user',
+                        content: prompt
+                    }
+                ],
+                stream: false, // Не используем streaming для простоты
+            }),
+        });
 
-        let v0Response = null;
-        let lastError = null;
+        console.log(`v0.dev API response status: ${v0Response.status}`);
 
-        // Пробуем каждый вариант
-        for (const config of endpointConfigs) {
-            try {
-                console.log(`Trying: ${config.method} ${config.url}`);
-                
-                const fetchOptions = {
-                    method: config.method,
-                    headers: {
-                        ...config.headers,
-                        'User-Agent': 'Poligraf-Telegram-MiniApp/1.0',
-                    },
-                };
-
-                if (config.body) {
-                    fetchOptions.body = JSON.stringify(config.body);
-                }
-
-                v0Response = await fetch(config.url, fetchOptions);
-
-                console.log(`Response status: ${v0Response.status} for ${config.method} ${config.url}`);
-
-                if (v0Response.ok) {
-                    console.log(`Success with: ${config.method} ${config.url}`);
-                    break; // Успешный запрос
-                } else {
-                    const errorText = await v0Response.text();
-                    lastError = { 
-                        endpoint: config.url,
-                        method: config.method,
-                        status: v0Response.status, 
-                        statusText: v0Response.statusText,
-                        error: errorText 
-                    };
-                    console.error(`Failed: ${config.method} ${config.url}`, lastError);
-                }
-            } catch (err) {
-                lastError = { endpoint: config.url, method: config.method, error: err.message };
-                console.error(`Error: ${config.method} ${config.url}`, err.message);
-                continue;
-            }
-        }
-
-        if (!v0Response || !v0Response.ok) {
-            const errorDetails = lastError || { message: 'All endpoints failed' };
-            console.error('v0.dev API error:', errorDetails);
-            return res.status(v0Response?.status || 500).json({ 
-                error: `v0.dev API error: ${v0Response?.statusText || 'Unknown error'}`,
-                status: v0Response?.status,
-                details: errorDetails,
-                message: 'Проверьте правильность API ключа и endpoint. Возможно, v0.dev использует другой формат API.'
+        if (!v0Response.ok) {
+            const errorText = await v0Response.text();
+            console.error('v0.dev API error:', {
+                status: v0Response.status,
+                statusText: v0Response.statusText,
+                error: errorText
+            });
+            
+            return res.status(v0Response.status).json({ 
+                error: `v0.dev API error: ${v0Response.statusText}`,
+                status: v0Response.status,
+                details: errorText
             });
         }
 
         const data = await v0Response.json();
+        console.log('v0.dev API response received');
+
+        // Формат ответа согласно документации:
+        // {
+        //   "choices": [
+        //     {
+        //       "message": {
+        //         "role": "assistant",
+        //         "content": "generated code..."
+        //       }
+        //     }
+        //   ]
+        // }
+        const generatedContent = data.choices?.[0]?.message?.content || 
+                                 data.choices?.[0]?.message?.text ||
+                                 'No content generated';
 
         // Возвращаем результат
-        // v0.dev может возвращать код в разных форматах
         return res.status(200).json({
-            result: data.code || data.markup || data.content || data,
-            code: data.code,
-            markup: data.markup,
-            content: data.content,
+            result: generatedContent,
+            code: generatedContent,
             raw: data, // Для отладки
         });
 
