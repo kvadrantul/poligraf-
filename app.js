@@ -53,17 +53,21 @@ if (tg.initDataUnsafe?.user?.id) {
         // Проверяем, содержит ли сохраненный userId рандом (старый формат)
         // Старый формат: test_1234567890_abc123 или user_1234567890_abc123
         // Новый формат: test_1234567890 или user_1234567890
-        if (storedUserId.includes('_') && storedUserId.split('_').length > 2) {
-            // Старый формат с рандомом - мигрируем
+        const parts = storedUserId.split('_');
+        if (parts.length > 2) {
+            // Старый формат с рандомом - мигрируем, сохраняя timestamp
             console.log('Migrating userId from old format (with random) to new format');
             const oldUserId = storedUserId;
             const oldProjectKey = `v0-project-${oldUserId}`;
             const oldProjectData = localStorage.getItem(oldProjectKey);
             
-            // Создаем новый userId без рандома
-            userId = storedUserId.startsWith('test_') 
-                ? `test_${Date.now()}`
-                : `user_${Date.now()}`;
+            // Извлекаем timestamp из старого userId (второй элемент после разделения по _)
+            // Формат: test_1763040925361_i2vj9phyb -> test_1763040925361
+            const prefix = parts[0]; // "test" или "user"
+            const timestamp = parts[1]; // timestamp
+            
+            // Создаем новый userId без рандома, но с тем же timestamp
+            userId = `${prefix}_${timestamp}`;
             
             // Сохраняем новый userId
             localStorage.setItem('poligraf-user-id', userId);
