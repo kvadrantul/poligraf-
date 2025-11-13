@@ -35,62 +35,107 @@ export default async function handler(req, res) {
         }
 
         // Отправляем запрос к v0.dev API
-        // Попробуем несколько возможных endpoints и форматов
-        const endpoints = [
+        // Пробуем разные варианты endpoints и методов
+        const endpointConfigs = [
+            // POST запросы
             {
                 url: 'https://v0.dev/api/v1/prompt',
-                body: { prompt: prompt }
+                method: 'POST',
+                body: { prompt: prompt },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`,
+                }
             },
             {
                 url: 'https://api.v0.dev/v1/prompt',
-                body: { prompt: prompt }
+                method: 'POST',
+                body: { prompt: prompt },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`,
+                }
             },
             {
-                url: 'https://v0.dev/api/generate',
-                body: { prompt: prompt }
+                url: 'https://v0.dev/api/v1/generate',
+                method: 'POST',
+                body: { prompt: prompt },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`,
+                }
+            },
+            // GET запросы с query параметрами
+            {
+                url: `https://v0.dev/api/v1/prompt?prompt=${encodeURIComponent(prompt)}`,
+                method: 'GET',
+                body: null,
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                }
+            },
+            // Альтернативный формат авторизации
+            {
+                url: 'https://v0.dev/api/v1/prompt',
+                method: 'POST',
+                body: { prompt: prompt },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-API-Key': apiKey,
+                }
             },
             {
-                url: 'https://api.v0.dev/api/generate',
-                body: { prompt: prompt }
+                url: 'https://v0.dev/api/v1/prompt',
+                method: 'POST',
+                body: { prompt: prompt },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `v1 ${apiKey}`,
+                }
             },
         ];
 
         let v0Response = null;
         let lastError = null;
 
-        // Пробуем каждый endpoint
-        for (const endpointConfig of endpoints) {
+        // Пробуем каждый вариант
+        for (const config of endpointConfigs) {
             try {
-                console.log(`Trying endpoint: ${endpointConfig.url}`);
+                console.log(`Trying: ${config.method} ${config.url}`);
                 
-                v0Response = await fetch(endpointConfig.url, {
-                    method: 'POST',
+                const fetchOptions = {
+                    method: config.method,
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${apiKey}`,
+                        ...config.headers,
                         'User-Agent': 'Poligraf-Telegram-MiniApp/1.0',
                     },
-                    body: JSON.stringify(endpointConfig.body),
-                });
+                };
 
-                console.log(`Response status: ${v0Response.status} for ${endpointConfig.url}`);
+                if (config.body) {
+                    fetchOptions.body = JSON.stringify(config.body);
+                }
+
+                v0Response = await fetch(config.url, fetchOptions);
+
+                console.log(`Response status: ${v0Response.status} for ${config.method} ${config.url}`);
 
                 if (v0Response.ok) {
-                    console.log(`Success with endpoint: ${endpointConfig.url}`);
+                    console.log(`Success with: ${config.method} ${config.url}`);
                     break; // Успешный запрос
                 } else {
                     const errorText = await v0Response.text();
                     lastError = { 
-                        endpoint: endpointConfig.url, 
+                        endpoint: config.url,
+                        method: config.method,
                         status: v0Response.status, 
                         statusText: v0Response.statusText,
                         error: errorText 
                     };
-                    console.error(`Endpoint ${endpointConfig.url} failed:`, lastError);
+                    console.error(`Failed: ${config.method} ${config.url}`, lastError);
                 }
             } catch (err) {
-                lastError = { endpoint: endpointConfig.url, error: err.message };
-                console.error(`Endpoint ${endpointConfig.url} error:`, err.message);
+                lastError = { endpoint: config.url, method: config.method, error: err.message };
+                console.error(`Error: ${config.method} ${config.url}`, err.message);
                 continue;
             }
         }
