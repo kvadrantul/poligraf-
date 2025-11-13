@@ -349,20 +349,22 @@ function loadSavedHTML() {
 
 // Функция для отправки запроса к v0.dev Model API
 async function sendToV0(prompt) {
-    let loadingIndicator = null;
+    let loadingOverlay = null;
+    let loadingSpinner = null;
 
     try {
-        // Показываем спиннер поверх контента (не очищаем предыдущий контент)
-        loadingIndicator = document.createElement('div');
-        loadingIndicator.className = 'loading-indicator';
+        // Создаем overlay с пульсацией для затемнения iframe
+        loadingOverlay = document.createElement('div');
+        loadingOverlay.className = 'loading-overlay';
+        document.body.appendChild(loadingOverlay);
         
-        const spinner = document.createElement('div');
-        spinner.className = 'spinner';
-        
-        loadingIndicator.appendChild(spinner);
-        
-        // Добавляем спиннер в body, чтобы он был поверх всего контента
-        document.body.appendChild(loadingIndicator);
+        // Создаем маленький белый спиннер в правом нижнем углу
+        loadingSpinner = document.createElement('div');
+        loadingSpinner.className = 'loading-spinner-small';
+        const spinnerSmall = document.createElement('div');
+        spinnerSmall.className = 'spinner-small';
+        loadingSpinner.appendChild(spinnerSmall);
+        document.body.appendChild(loadingSpinner);
 
         // Проверяем, есть ли сохраненный код для контекста (правка)
         const codeKey = `poligraf-last-code-${userId}`;
@@ -370,7 +372,8 @@ async function sendToV0(prompt) {
         
         let enhancedPrompt = prompt;
         
-        // Если есть сохраненный код и промпт похож на правку - добавляем контекст
+        // Если есть сохраненный код - ВСЕГДА используем его как основу для правок
+        // Это гарантирует, что мы редактируем существующий компонент, а не создаем новый
         if (lastCode && lastCode.length > 0) {
             const isEdit = prompt.toLowerCase().includes('измени') ||
                           prompt.toLowerCase().includes('прав') ||
@@ -378,21 +381,36 @@ async function sendToV0(prompt) {
                           prompt.toLowerCase().includes('убери') ||
                           prompt.toLowerCase().includes('сделай') ||
                           prompt.toLowerCase().includes('переделай') ||
+                          prompt.toLowerCase().includes('поменяй') ||
+                          prompt.toLowerCase().includes('замени') ||
                           prompt.toLowerCase().includes('change') ||
                           prompt.toLowerCase().includes('modify') ||
                           prompt.toLowerCase().includes('update') ||
                           prompt.toLowerCase().includes('fix') ||
-                          prompt.toLowerCase().includes('edit');
+                          prompt.toLowerCase().includes('edit') ||
+                          prompt.toLowerCase().includes('color') ||
+                          prompt.toLowerCase().includes('цвет');
             
             if (isEdit) {
-                // Добавляем контекст предыдущего кода
-                const maxCodeLength = 5000;
+                // Используем полный код как основу (увеличиваем лимит для лучшего контекста)
+                const maxCodeLength = 8000;
                 const truncatedCode = lastCode.length > maxCodeLength 
                     ? lastCode.substring(0, maxCodeLength) + '\n// ... (code truncated)'
                     : lastCode;
                 
-                enhancedPrompt = `Update this React component:\n\n\`\`\`tsx\n${truncatedCode}\n\`\`\`\n\nUser request: ${prompt}\n\nPlease update the component according to the user's request and return the complete updated code.`;
-                console.log('Using enhanced prompt with context for edit');
+                enhancedPrompt = `You are an expert React/Next.js developer. I have an existing React component that I need to modify. 
+
+IMPORTANT: Use the existing code below as the BASE/FOUNDATION. Keep the same structure, layout, and styling approach. Only make the specific changes requested by the user.
+
+Existing component code:
+${'```'}tsx
+${truncatedCode}
+${'```'}
+
+User's modification request: "${prompt}"
+
+Please update ONLY what the user requested, keeping everything else the same. Return the COMPLETE updated component code with all the original structure preserved.`;
+                console.log('Using enhanced prompt with existing code as base for edit');
             }
         }
 
@@ -410,8 +428,11 @@ async function sendToV0(prompt) {
         
         clearTimeout(timeoutId);
 
-        if (loadingIndicator) {
-            loadingIndicator.remove();
+        if (loadingOverlay) {
+            loadingOverlay.remove();
+        }
+        if (loadingSpinner) {
+            loadingSpinner.remove();
         }
 
         if (!response.ok) {
@@ -431,8 +452,11 @@ async function sendToV0(prompt) {
     } catch (error) {
         console.error('Ошибка при отправке запроса:', error);
         
-        if (loadingIndicator) {
-            loadingIndicator.remove();
+        if (loadingOverlay) {
+            loadingOverlay.remove();
+        }
+        if (loadingSpinner) {
+            loadingSpinner.remove();
         }
 
         // Показываем ошибку поверх контента
