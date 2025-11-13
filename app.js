@@ -21,7 +21,9 @@ const API_ITERATE = `${API_BASE}/api/v0/iterate`; // Platform API
 const userId = tg.initDataUnsafe?.user?.id || `user_${Date.now()}`;
 
 // Максимальное количество проектов (лимит для защиты)
-const MAX_PROJECTS = 5;
+// Согласно документации v0.dev: 100 проектов на аккаунт
+// Устанавливаем меньший лимит для безопасности
+const MAX_PROJECTS = 50;
 
 // История результатов (для отображения всех результатов в одном проекте)
 let resultsHistory = [];

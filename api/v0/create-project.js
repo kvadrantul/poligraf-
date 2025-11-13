@@ -30,59 +30,37 @@ export default async function handler(req, res) {
         }
 
         // Создаем проект через v0 Platform API
-        // Пробуем разные возможные endpoints
-        const endpoints = [
-            'https://api.v0.dev/v1/projects',
-            'https://v0.dev/api/v1/projects',
-            'https://api.v0.dev/v1/platform/projects',
-        ];
+        // Согласно документации: POST https://api.v0.dev/v1/projects
+        console.log('Creating project via v0 Platform API');
+        const createProjectResponse = await fetch('https://api.v0.dev/v1/projects', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+                name: `Poligraf Project - User ${userId}`
+            }),
+        });
 
-        let createProjectResponse = null;
-        let lastError = null;
-
-        for (const endpoint of endpoints) {
+        if (!createProjectResponse.ok) {
+            const errorText = await createProjectResponse.text();
+            let errorData;
             try {
-                console.log(`Trying to create project at: ${endpoint}`);
-                createProjectResponse = await fetch(endpoint, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${apiKey}`,
-                    },
-                    body: JSON.stringify({
-                        name: `Poligraf Project - User ${userId}`,
-                        description: 'Telegram Mini App project'
-                    }),
-                });
-
-                if (createProjectResponse.ok) {
-                    console.log(`Success with endpoint: ${endpoint}`);
-                    break;
-                } else {
-                    const errorText = await createProjectResponse.text();
-                    lastError = { endpoint, status: createProjectResponse.status, error: errorText };
-                    console.log(`Failed with ${endpoint}:`, lastError);
-                }
-            } catch (err) {
-                lastError = { endpoint, error: err.message };
-                console.log(`Error with ${endpoint}:`, err.message);
-                continue;
+                errorData = JSON.parse(errorText);
+            } catch {
+                errorData = { error: errorText };
             }
-        }
-
-        if (!createProjectResponse || !createProjectResponse.ok) {
-            const errorText = lastError ? JSON.stringify(lastError) : 'Unknown error';
-            console.error('v0.dev create project error:', errorText);
+            console.error('v0.dev create project error:', errorData);
             
-            return res.status(createProjectResponse?.status || 500).json({ 
+            return res.status(createProjectResponse.status).json({ 
                 error: 'Failed to create project',
-                details: lastError,
-                note: 'Возможно, используется неправильный endpoint. Проверьте документацию v0 Platform API.'
+                details: errorData
             });
         }
 
         const projectData = await createProjectResponse.json();
-        const projectId = projectData.id || projectData.projectId;
+        const projectId = projectData.id || projectData.data?.id;
 
         if (!projectId) {
             return res.status(500).json({ 
@@ -92,31 +70,42 @@ export default async function handler(req, res) {
         }
 
         // Создаем чат в проекте
-        const createChatResponse = await fetch(`https://api.v0.dev/v1/projects/${projectId}/chats`, {
+        // Согласно документации: POST https://api.v0.dev/v1/chats
+        // Используем create() для начала с AI генерацией
+        console.log('Creating chat in project:', projectId);
+        const createChatResponse = await fetch('https://api.v0.dev/v1/chats', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${apiKey}`,
             },
             body: JSON.stringify({
-                name: 'Main Chat'
+                projectId: projectId,
+                initialMessage: 'Hello! I\'m ready to help you build components.'
             }),
         });
 
         if (!createChatResponse.ok) {
             const errorText = await createChatResponse.text();
-            console.error('v0.dev create chat error:', errorText);
+            let errorData;
+            try {
+                errorData = JSON.parse(errorText);
+            } catch {
+                errorData = { error: errorText };
+            }
+            console.error('v0.dev create chat error:', errorData);
             
             // Возвращаем projectId даже если чат не создан (можно создать позже)
             return res.status(200).json({
                 projectId: projectId,
                 chatId: null,
-                warning: 'Project created but chat creation failed'
+                warning: 'Project created but chat creation failed',
+                error: errorData
             });
         }
 
         const chatData = await createChatResponse.json();
-        const chatId = chatData.id || chatData.chatId;
+        const chatId = chatData.id || chatData.data?.id;
 
         return res.status(200).json({
             projectId: projectId,

@@ -32,67 +32,67 @@ export default async function handler(req, res) {
         }
 
         // Отправляем сообщение в чат (итерация)
-        // Пробуем разные возможные endpoints
-        const endpoints = [
-            `https://api.v0.dev/v1/projects/${projectId}/chats/${chatId}/messages`,
-            `https://api.v0.dev/v1/projects/${projectId}/chats/${chatId}/iterate`,
-            `https://v0.dev/api/v1/projects/${projectId}/chats/${chatId}/messages`,
-            `https://api.v0.dev/v1/platform/projects/${projectId}/chats/${chatId}/messages`,
-        ];
+        // Согласно документации: POST https://api.v0.dev/v1/chats/:id/messages
+        console.log('Sending message to chat:', chatId);
+        const iterateResponse = await fetch(`https://api.v0.dev/v1/chats/${chatId}/messages`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+                content: prompt
+            }),
+        });
 
-        let iterateResponse = null;
-        let lastError = null;
-
-        for (const endpoint of endpoints) {
+        if (!iterateResponse.ok) {
+            const errorText = await iterateResponse.text();
+            let errorData;
             try {
-                console.log(`Trying to iterate at: ${endpoint}`);
-                iterateResponse = await fetch(endpoint, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${apiKey}`,
-                    },
-                    body: JSON.stringify({
-                        content: prompt,
-                        role: 'user',
-                        message: prompt
-                    }),
-                });
-
-                if (iterateResponse.ok) {
-                    console.log(`Success with endpoint: ${endpoint}`);
-                    break;
-                } else {
-                    const errorText = await iterateResponse.text();
-                    lastError = { endpoint, status: iterateResponse.status, error: errorText };
-                    console.log(`Failed with ${endpoint}:`, lastError);
-                }
-            } catch (err) {
-                lastError = { endpoint, error: err.message };
-                console.log(`Error with ${endpoint}:`, err.message);
-                continue;
+                errorData = JSON.parse(errorText);
+            } catch {
+                errorData = { error: errorText };
             }
-        }
-
-        if (!iterateResponse || !iterateResponse.ok) {
-            const errorText = lastError ? JSON.stringify(lastError) : 'Unknown error';
-            console.error('v0.dev iterate error:', errorText);
+            console.error('v0.dev iterate error:', errorData);
             
-            return res.status(iterateResponse?.status || 500).json({ 
+            return res.status(iterateResponse.status).json({ 
                 error: 'Failed to iterate',
-                details: lastError,
-                note: 'Возможно, используется неправильный endpoint. Проверьте документацию v0 Platform API.'
+                details: errorData
             });
         }
 
         const responseData = await iterateResponse.json();
         
         // Извлекаем код из ответа
-        // Формат ответа может быть разным, нужно адаптировать
-        const code = responseData.code || 
-                    responseData.content || 
-                    responseData.message?.content ||
-                    responseData;
+        // Согласно документации, ответ содержит messages с content
+        // Нужно найти последнее сообщение от assistant с кодом
+        let code = '';
+        
+        if (responseData.messages && Array.isArray(responseData.messages)) {
+            // Ищем последнее сообщение от assistant
+            const assistantMessages = responseData.messages
+                .filter(msg => msg.role === 'assistant')
+                .reverse();
+            
+            if (assistantMessages.length > 0) {
+                const lastMessage = assistantMessages[0];
+                code = lastMessage.content || '';
+            }
+        } else if (responseData.data?.messages) {
+            const assistantMessages = responseData.data.messages
+                .filter(msg => msg.role === 'assistant')
+                .reverse();
+            
+            if (assistantMessages.length > 0) {
+                code = assistantMessages[0].content || '';
+            }
+        } else {
+            // Fallback: ищем код в разных местах
+            code = responseData.code || 
+                   responseData.content || 
+                   responseData.message?.content ||
+                   JSON.stringify(responseData);
+        }
 
         return res.status(200).json({
             result: code,
