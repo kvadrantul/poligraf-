@@ -1,4 +1,5 @@
 // Vercel Serverless Function для получения контента проекта из v0.dev Platform API
+// Контент хранится в файлах проекта, а не в сообщениях чата
 
 export default async function handler(req, res) {
     // Разрешаем CORS для Telegram Mini App
@@ -31,101 +32,136 @@ export default async function handler(req, res) {
             });
         }
 
-        // Получаем сообщения из чата
-        console.log('Getting messages from chat:', chatId);
-        const getMessagesResponse = await fetch(`https://api.v0.dev/v1/chats/${chatId}/messages`, {
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${apiKey}`,
-            },
-        });
-
-        if (!getMessagesResponse.ok) {
-            const errorText = await getMessagesResponse.text();
-            let errorData;
-            try {
-                errorData = JSON.parse(errorText);
-            } catch {
-                errorData = { error: errorText };
-            }
-            console.error('v0.dev get messages error:', errorData);
-            
-            return res.status(getMessagesResponse.status).json({ 
-                error: 'Failed to get messages',
-                details: errorData
+        // Получаем файлы проекта (контент хранится в файлах, а не в сообщениях)
+        console.log('Getting project files:', projectId);
+        
+        // Пробуем несколько возможных endpoints для получения файлов проекта
+        let projectFiles = null;
+        let projectData = null;
+        
+        // Вариант 1: GET /v1/projects/{projectId} - получение информации о проекте
+        try {
+            const getProjectResponse = await fetch(`https://api.v0.dev/v1/projects/${projectId}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                },
             });
+            
+            if (getProjectResponse.ok) {
+                projectData = await getProjectResponse.json();
+                console.log('Project data received:', JSON.stringify(projectData, null, 2));
+                
+                // Проверяем разные возможные поля с файлами
+                projectFiles = projectData.files || projectData.data?.files || projectData.content || projectData.data?.content;
+            } else {
+                const errorText = await getProjectResponse.text();
+                console.log('GET /v1/projects/{id} failed:', getProjectResponse.status, errorText);
+            }
+        } catch (error) {
+            console.log('Error getting project:', error.message);
         }
-
-        const messagesData = await getMessagesResponse.json();
-        const messages = messagesData.messages || messagesData.data?.messages || [];
         
-        console.log('Total messages:', messages.length);
-        console.log('Messages structure:', JSON.stringify(messages.map(m => ({ role: m.role, contentLength: m.content?.length || 0 })), null, 2));
+        // Вариант 2: GET /v1/projects/{projectId}/files - получение файлов проекта
+        if (!projectFiles) {
+            try {
+                const getFilesResponse = await fetch(`https://api.v0.dev/v1/projects/${projectId}/files`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`,
+                    },
+                });
+                
+                if (getFilesResponse.ok) {
+                    const filesData = await getFilesResponse.json();
+                    console.log('Project files received:', JSON.stringify(filesData, null, 2));
+                    projectFiles = filesData.files || filesData.data || filesData;
+                } else {
+                    const errorText = await getFilesResponse.text();
+                    console.log('GET /v1/projects/{id}/files failed:', getFilesResponse.status, errorText);
+                }
+            } catch (error) {
+                console.log('Error getting project files:', error.message);
+            }
+        }
         
-        // Ищем последнее сообщение от assistant с кодом
-        const assistantMessages = messages
-            .filter(msg => msg.role === 'assistant')
-            .reverse();
-        
-        console.log('Assistant messages count:', assistantMessages.length);
-        
+        // Извлекаем код из файлов проекта
         let lastCode = '';
         let hasContent = false;
         
-        if (assistantMessages.length > 0) {
-            // Есть сообщения от assistant - берем последнее
-            const lastMessage = assistantMessages[0];
-            lastCode = lastMessage.content || '';
-            hasContent = lastCode.length > 0;
-            console.log('Found assistant message with code, length:', lastCode.length);
-            console.log('Assistant message preview:', lastCode.substring(0, 200));
-        } else {
-            // Нет сообщений от assistant - ищем код в сообщениях пользователя
-            // (когда код был сохранен через save-to-project)
-            console.log('No assistant messages, searching in user messages');
-            const userMessages = messages
-                .filter(msg => msg.role === 'user')
-                .reverse();
+        if (projectFiles && Array.isArray(projectFiles) && projectFiles.length > 0) {
+            // Есть файлы - берем последний файл с кодом
+            console.log('Found project files:', projectFiles.length);
             
-            console.log('User messages count:', userMessages.length);
+            // Ищем файлы с кодом (обычно .tsx, .ts, .jsx, .js)
+            const codeFiles = projectFiles.filter(file => {
+                const name = file.name || file.path || file.fileName || '';
+                return name.endsWith('.tsx') || name.endsWith('.ts') || name.endsWith('.jsx') || name.endsWith('.js');
+            });
             
-            for (let i = 0; i < userMessages.length; i++) {
-                const msg = userMessages[i];
-                const content = msg.content || '';
-                console.log(`Checking user message ${i + 1}, content length: ${content.length}`);
-                console.log(`User message ${i + 1} preview: ${content.substring(0, 200)}`);
-                
-                // Ищем код в markdown блоках
-                const codeBlockMatch = content.match(/```[\w]*\n?([\s\S]*?)```/);
-                if (codeBlockMatch && codeBlockMatch[1]) {
-                    lastCode = codeBlockMatch[1].trim();
-                    hasContent = lastCode.length > 0;
-                    console.log('✅ Found code in user message markdown block, length:', lastCode.length);
-                    break;
-                } else if (content.length > 100 && (content.includes('export') || content.includes('function') || content.includes('const'))) {
-                    // Похоже на код без markdown блоков
-                    lastCode = content.trim();
-                    hasContent = lastCode.length > 0;
-                    console.log('✅ Found code-like content in user message (no markdown), length:', lastCode.length);
-                    break;
-                }
+            if (codeFiles.length > 0) {
+                // Берем последний файл (самый свежий)
+                const lastFile = codeFiles[codeFiles.length - 1];
+                lastCode = lastFile.content || lastFile.code || lastFile.text || lastFile.body || '';
+                hasContent = lastCode.length > 0;
+                console.log('✅ Found code in project file:', lastFile.name || lastFile.path || lastFile.fileName, 'length:', lastCode.length);
+            } else {
+                // Нет файлов с кодом - пробуем взять первый файл
+                const firstFile = projectFiles[0];
+                lastCode = firstFile.content || firstFile.code || firstFile.text || firstFile.body || '';
+                hasContent = lastCode.length > 0;
+                console.log('Using first file as code:', firstFile.name || firstFile.path || firstFile.fileName, 'length:', lastCode.length);
             }
-            
-            if (!hasContent) {
-                console.log('❌ No code found in any user messages');
+        } else if (projectFiles && typeof projectFiles === 'object' && !Array.isArray(projectFiles)) {
+            // Файлы в виде объекта - пробуем извлечь код
+            lastCode = projectFiles.content || projectFiles.code || projectFiles.text || projectFiles.body || '';
+            hasContent = lastCode.length > 0;
+            console.log('Found code in project data object, length:', lastCode.length);
+        }
+        
+        // Fallback: если не нашли в файлах, пробуем получить из сообщений чата
+        if (!hasContent) {
+            console.log('No code in project files, trying to get from chat messages (fallback)');
+            try {
+                const getMessagesResponse = await fetch(`https://api.v0.dev/v1/chats/${chatId}/messages`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`,
+                    },
+                });
+
+                if (getMessagesResponse.ok) {
+                    const messagesData = await getMessagesResponse.json();
+                    const messages = messagesData.messages || messagesData.data?.messages || [];
+                    
+                    // Ищем последнее сообщение от assistant
+                    const assistantMessages = messages
+                        .filter(msg => msg.role === 'assistant')
+                        .reverse();
+                    
+                    if (assistantMessages.length > 0) {
+                        const lastMessage = assistantMessages[0];
+                        lastCode = lastMessage.content || '';
+                        hasContent = lastCode.length > 0;
+                        console.log('Found code in assistant message (fallback), length:', lastCode.length);
+                    }
+                }
+            } catch (error) {
+                console.log('Error getting messages (fallback):', error.message);
             }
         }
         
         console.log('Final result:', {
             hasContent: hasContent,
             codeLength: lastCode.length,
-            codePreview: lastCode.substring(0, 100)
+            codePreview: lastCode.substring(0, 100),
+            source: projectFiles ? 'project_files' : 'chat_messages_fallback'
         });
 
         return res.status(200).json({
             code: lastCode,
-            messagesCount: messages.length,
-            hasContent: hasContent
+            hasContent: hasContent,
+            source: projectFiles ? 'project_files' : (hasContent ? 'chat_messages' : 'none')
         });
 
     } catch (error) {
@@ -136,4 +172,3 @@ export default async function handler(req, res) {
         });
     }
 }
-
