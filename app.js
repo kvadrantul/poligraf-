@@ -368,25 +368,38 @@ function displayResult(result) {
         return;
     }
     
-    // Улучшенное определение React кода
+    // Проверяем, что это не текстовый ответ модели (отказ или объяснение)
+    const isTextResponse = codeText.trim().startsWith("I'm") || 
+                          codeText.trim().startsWith("However") ||
+                          codeText.trim().startsWith("Sorry") ||
+                          codeText.trim().startsWith("I can't") ||
+                          codeText.trim().startsWith("I cannot") ||
+                          (codeText.includes("I help with") && !codeText.includes('function')) ||
+                          (codeText.includes("assistant") && !codeText.includes('export') && !codeText.includes('function'));
+    
+    // Улучшенное определение React кода - проверяем структуру кода
+    const hasCodeStructure = (codeText.includes('export') && codeText.includes('function')) ||
+                             (codeText.includes('export') && codeText.includes('const') && codeText.includes('=')) ||
+                             (codeText.includes('function') && codeText.includes('return')) ||
+                             (codeText.includes('const') && codeText.includes('=>') && codeText.includes('return'));
+    
     const hasReactKeywords = codeText.includes('import') || 
                              codeText.includes('export') || 
-                             codeText.includes('function') || 
                              codeText.includes('className') || 
                              codeText.includes('return (') || 
-                             codeText.includes('React') ||
                              codeText.includes('jsx') || 
-                             codeText.includes('tsx') ||
-                             codeText.includes('const ') ||
-                             codeText.includes('=>');
+                             codeText.includes('tsx');
     
     // Проверяем, что это не просто HTML разметка
     const isPlainHTML = codeText.trim().startsWith('<!DOCTYPE') || 
                         (codeText.trim().startsWith('<html') && !codeText.includes('function') && !codeText.includes('export'));
     
-    const isReactCode = hasReactKeywords && !isPlainHTML;
+    // Это React код только если есть структура кода И React ключевые слова, И это не текстовый ответ
+    const isReactCode = hasCodeStructure && hasReactKeywords && !isPlainHTML && !isTextResponse;
     
     console.log('🔍 Code analysis:');
+    console.log('  - Is text response:', isTextResponse);
+    console.log('  - Has code structure:', hasCodeStructure);
     console.log('  - Has React keywords:', hasReactKeywords);
     console.log('  - Is plain HTML:', isPlainHTML);
     console.log('  - Will render as React:', isReactCode);
@@ -502,9 +515,18 @@ function displayResult(result) {
             }
         } else {
             // Если это не HTML и не React, показываем как текст
+            // Если это текстовый ответ модели (отказ), показываем с предупреждением
+            let displayText = codeText;
+            if (isTextResponse) {
+                displayText = '⚠️ Модель вернула текстовый ответ вместо кода:\n\n' + codeText;
+                console.warn('⚠️ Model returned text response instead of code');
+            }
+            
             const textElement = document.createElement('div');
             textElement.className = 'result-text';
-            textElement.textContent = codeText;
+            textElement.style.whiteSpace = 'pre-wrap';
+            textElement.style.wordWrap = 'break-word';
+            textElement.textContent = displayText;
             resultItem.appendChild(textElement);
         }
     }
@@ -551,19 +573,17 @@ function loadSavedPromptAndMarkup() {
 }
 
 // Системный промпт для полиграфии (добавляется в начало каждого запроса)
-const SYSTEM_PROMPT = `Ты — дизайнер элитной полиграфии. Создавай только: открытки, визитки, приглашения, плакаты.
+const SYSTEM_PROMPT = `Ты — эксперт по созданию React/TSX компонентов для полиграфической продукции. Твоя задача — генерировать код React компонентов, которые визуально представляют дизайн для печати: открытки, визитки, приглашения, плакаты.
 
 **КРИТИЧЕСКИЕ ПРАВИЛА:**
 
+- ВСЕГДА возвращай валидный React/TSX код компонента
 - АБСОЛЮТНЫЙ ПРИОРИТЕТ: Детально воспроизводи графику из референсов (узоры, текстуры, иллюстрации) без упрощений
-
 - СТИЛЬ: Премиум-качество, дорогой вид, сложная композиция
-
 - ТИПОГРАФИКА: Только элитные шрифты, идеальная иерархия
+- ЗАПРЕЩЕНО: Веб-элементы (навигация, футеры, кнопки для клика), упрощённая графика, низкое качество
 
-- ЗАПРЕЩЕНО: Веб-элементы, упрощённая графика, низкое качество
-
-**ФОКУС:** Детальная графика + элитная типографика + премиум-оформление`;
+**ФОРМАТ ОТВЕТА:** Верни ТОЛЬКО код React/TSX компонента, без объяснений. Используй export default function ComponentName() { return (...); }`;
 
 // Состояние включения/выключения системного промпта полиграфии
 let polygraphyModeEnabled = true; // По умолчанию включено
@@ -715,10 +735,14 @@ ${truncatedHTML}
             console.log('✅ Image reference mentioned in prompt');
         }
         
-        // Если режим полиграфии выключен, добавляем инструкцию возвращать React код
+        // Добавляем инструкцию возвращать React код
         if (!polygraphyModeEnabled) {
             userPrompt += '\n\nВерни React/TSX компонент с готовым дизайном.';
             console.log('✅ Added React code instruction (polygraphy mode disabled)');
+        } else {
+            // В режиме полиграфии также добавляем напоминание
+            userPrompt += '\n\nВерни ТОЛЬКО код React/TSX компонента, без текстовых объяснений.';
+            console.log('✅ Added React code instruction (polygraphy mode enabled)');
         }
 
         const controller = new AbortController();
