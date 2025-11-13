@@ -259,9 +259,6 @@ function displayResult(result) {
 // Функция для отправки запроса к v0.dev API
 async function sendToV0(prompt) {
     let loadingIndicator = null;
-    let loadingTimeElement = null;
-    let startTime = null;
-    let timeInterval = null;
 
     try {
         // Показываем индикатор загрузки
