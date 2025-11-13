@@ -157,7 +157,7 @@ export default async function handler(req, res) {
         } else {
             // Используем v0.dev API
             console.log('Using v0.dev API');
-            console.log('System prompt length:', systemPrompt.length);
+            console.log('System prompt:', systemPrompt ? `exists (${systemPrompt.length} chars)` : 'null (polygraphy mode disabled)');
             console.log('User prompt length:', userPrompt.length);
             console.log('User prompt preview:', userPrompt.substring(0, 200));
             console.log('Has image:', !!image);
