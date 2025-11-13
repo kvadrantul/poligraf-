@@ -847,7 +847,7 @@ async function loadProjectOnStartup() {
                 console.log('Project content data (summary):', { 
                     hasContent: data.hasContent, 
                     codeLength: data.code?.length || 0,
-                    messagesCount: data.messagesCount,
+                    source: data.source || 'unknown',
                     codePreview: data.code?.substring(0, 200) || 'no code',
                     codeFirstChars: data.code ? data.code.substring(0, 50) : 'no code'
                 });
@@ -865,7 +865,7 @@ async function loadProjectOnStartup() {
                         hasContent: data.hasContent,
                         codeLength: data.code?.length || 0,
                         codeExists: !!data.code,
-                        messagesCount: data.messagesCount
+                        source: data.source || 'unknown'
                     });
                     resultContent.innerHTML = '';
                 }
