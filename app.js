@@ -622,8 +622,6 @@ async function sendToV0(prompt) {
         (async () => {
             try {
                 let projectId, chatId;
-                const stored = localStorage.getItem(`v0-project-${userId}`);
-                
                 const projectKey = `v0-project-${userId}`;
                 console.log('Saving code: Looking for project with key:', projectKey);
                 const stored = localStorage.getItem(projectKey);
