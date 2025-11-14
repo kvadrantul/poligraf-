@@ -8,9 +8,15 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	// Загружаем переменные окружения из .env файла
+	if err := godotenv.Load(); err != nil {
+		log.Println("⚠️ .env file not found, using environment variables")
+	}
+
 	// Получаем порт из переменной окружения или используем 8080 по умолчанию
 	port := os.Getenv("PORT")
 	if port == "" {
