@@ -68,7 +68,8 @@ executor = ThreadPoolExecutor(max_workers=1)
 # - "stabilityai/sdxl-turbo" - быстрая SDXL (1-4 шага), ~10GB, коммерческое использование разрешено
 # - "stabilityai/stable-diffusion-3-medium-diffusers" - требует HF token, НЕКОММЕРЧЕСКОЕ использование
 # Пробуем сначала LCM Dreamshaper, если не загрузится - используем SD 1.4
-MODEL_ID = os.getenv("SD_MODEL_ID", "CompVis/stable-diffusion-v1-4")  # По умолчанию: САМАЯ ПРОСТАЯ модель (гарантированно работает)
+# Переключаемся на LCM Dreamshaper - быстрее и надежнее чем SD 1.4
+MODEL_ID = os.getenv("SD_MODEL_ID", "SimianLuo/LCM_Dreamshaper_v7")  # LCM модель - 1-2 шага, быстрее и лучше качество
 FALLBACK_MODEL_ID = "CompVis/stable-diffusion-v1-4"  # Fallback если основная не загрузится
 HF_TOKEN = os.getenv("HUGGINGFACE_TOKEN", "")  # Для gated моделей (не используется для Lightning)
 
