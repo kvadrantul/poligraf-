@@ -1004,6 +1004,11 @@ ${truncatedHTML}
         // ЭТАП 2: Отправляем запрос в v0.dev с сгенерированным изображением
         console.log('🚀 Step 2: Sending request to v0.dev with generated image...');
         
+        // Убеждаемся, что этап 3 активен (если генерация изображения была пропущена)
+        if (progressIndicator && !imageGenerationEnabled) {
+            progressIndicator.updateStep(3, 'active');
+        }
+        
         const response = await fetch(API_GENERATE, {
             method: 'POST',
             headers: {
