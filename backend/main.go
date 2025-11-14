@@ -52,17 +52,22 @@ func setupRoutes(r *gin.Engine) {
 	r.GET("/", func(c *gin.Context) {
 		c.File("../index.html")
 	})
-	
+
 	// Отдаем остальные статические файлы (JS, CSS и т.д.)
 	r.StaticFile("/app.js", "../app.js")
 	r.StaticFile("/app.local.js", "../app.local.js")
 	r.StaticFile("/styles.css", "../styles.css")
 	r.StaticFile("/index.html", "../index.html")
-	
-	// Для всех остальных запросов (fallback)
+
+	// Для всех остальных GET запросов (fallback для статики)
 	r.NoRoute(func(c *gin.Context) {
-		// Пробуем отдать файл из корня проекта
-		filePath := "../" + c.Request.URL.Path
-		c.File(filePath)
+		// Только для GET запросов пытаемся отдать файл
+		if c.Request.Method == "GET" {
+			filePath := "../" + c.Request.URL.Path
+			c.File(filePath)
+		} else {
+			// Для POST/PUT/DELETE и других методов возвращаем 404
+			c.JSON(404, gin.H{"error": "Not found"})
+		}
 	})
 }
