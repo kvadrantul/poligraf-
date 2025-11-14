@@ -8,7 +8,7 @@ import os
 from typing import Optional
 
 import torch
-from diffusers import StableDiffusion3Pipeline
+from diffusers import StableDiffusionPipeline
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -29,8 +29,8 @@ pipe = None
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"🔧 Using device: {device}")
 
-# Модель по умолчанию
-MODEL_ID = "stabilityai/stable-diffusion-3-medium-diffusers"
+# Модель по умолчанию (используем открытую модель, не требующую авторизации)
+MODEL_ID = "runwayml/stable-diffusion-v1-5"
 
 
 class GenerateRequest(BaseModel):
@@ -57,8 +57,10 @@ def load_model():
     print("⏳ This may take a few minutes on first run...")
 
     try:
-        # Загружаем пайплайн
-        pipe = StableDiffusion3Pipeline.from_pretrained(
+        # Загружаем пайплайн (Stable Diffusion 2.1 использует StableDiffusionPipeline)
+        from diffusers import StableDiffusionPipeline
+        
+        pipe = StableDiffusionPipeline.from_pretrained(
             MODEL_ID,
             torch_dtype=torch.float16 if device == "cuda" else torch.float32,
         )
@@ -78,12 +80,8 @@ def load_model():
 
 @app.on_event("startup")
 async def startup_event():
-    """Загружаем модель при старте сервера"""
-    try:
-        load_model()
-    except Exception as e:
-        print(f"⚠️ Warning: Could not load model on startup: {e}")
-        print("Model will be loaded on first request")
+    """Модель загрузится при первом запросе (ленивая загрузка)"""
+    print("✅ Server started. Model will be loaded on first request.")
 
 
 @app.get("/health")
