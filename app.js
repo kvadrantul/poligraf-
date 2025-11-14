@@ -295,17 +295,26 @@ function renderReactComponent(codeText, container) {
     <script src="https://unpkg.com/lucide-react@latest/dist/umd/lucide-react.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
-        * { box-sizing: border-box; }
+        * { 
+            box-sizing: border-box; 
+            margin: 0;
+            padding: 0;
+        }
         html, body { 
             margin: 0; 
             padding: 0; 
             width: 100%;
             height: 100%;
+            max-width: 100vw;
+            max-height: 100vh;
+            overflow-x: hidden;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
         }
         #root {
             width: 100%;
+            max-width: 100vw;
             min-height: 100%;
+            overflow-x: hidden;
         }
     </style>
 </head>
@@ -537,13 +546,18 @@ function displayResult(result) {
             padding: 0;
             width: 100%;
             height: 100%;
-            overflow: auto;
+            max-width: 100vw;
+            max-height: 100vh;
+            overflow-x: hidden;
+            overflow-y: auto;
         }
         #root {
             margin: 0;
             padding: 0;
             width: 100%;
+            max-width: 100vw;
             min-height: 100%;
+            overflow-x: hidden;
         }
     </style>
 </head>

@@ -80,6 +80,9 @@ body {
     background: #000000;
     box-sizing: border-box;
     position: relative;
+    /* Предотвращаем выезжание за края на мобильных */
+    max-width: 100vw;
+    max-height: 100vh;
 }
 
 .placeholder {
@@ -115,6 +118,9 @@ body {
     max-height: 100vh;
     box-sizing: border-box;
     position: relative;
+    /* Предотвращаем выезжание за края на мобильных */
+    max-width: 100vw;
+    max-height: 100vh;
 }
 
 .react-iframe {
@@ -131,6 +137,9 @@ body {
     display: block;
     overflow: hidden;
     position: relative;
+    /* Предотвращаем выезжание за края на мобильных */
+    max-width: 100vw;
+    max-height: 100vh;
 }
 
 .result-text {
@@ -186,6 +195,63 @@ body {
 @keyframes spin {
     to {
         transform: rotate(360deg);
+    }
+}
+
+/* Мобильные стили для предотвращения выезжания контента за края */
+@media screen and (max-width: 768px) {
+    body {
+        overflow-x: hidden;
+        width: 100vw;
+        max-width: 100vw;
+    }
+    
+    .container {
+        width: 100vw;
+        max-width: 100vw;
+        overflow-x: hidden;
+    }
+    
+    .result-area {
+        width: 100vw;
+        max-width: 100vw;
+        overflow-x: hidden;
+    }
+    
+    .result-content {
+        width: 100vw;
+        max-width: 100vw;
+        overflow-x: hidden;
+    }
+    
+    .react-render-container {
+        width: 100vw;
+        max-width: 100vw;
+        overflow-x: hidden;
+    }
+    
+    .react-iframe {
+        width: 100vw;
+        max-width: 100vw;
+        overflow-x: hidden;
+    }
+    
+    .result-item {
+        width: 100vw;
+        max-width: 100vw;
+        overflow-x: hidden;
+    }
+}
+
+/* Дополнительные стили для очень маленьких экранов */
+@media screen and (max-width: 480px) {
+    body {
+        overflow-x: hidden;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    .result-content {
+        -webkit-overflow-scrolling: touch;
     }
 }
 
