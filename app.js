@@ -228,22 +228,12 @@ function renderReactComponent(codeText, container) {
                 cleanCode = processImports(cleanCode);
                 
                 // ИСПРАВЛЕНИЕ: Экранируем проблемные кавычки в URL внутри className
-                // Проблема: bg-[url('data:image/svg+xml,...')] содержит кавычки, которые ломают парсинг Babel
-                // Решение: заменяем одинарные кавычки внутри url() на экранированные
-                cleanCode = cleanCode.replace(/bg-\[url\(['"]([^'"]*)['"]\)\]/g, (match, url) => {
-                    // Экранируем кавычки внутри URL
-                    const escapedUrl = url.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-                    return `bg-[url('${escapedUrl}')]`;
-                });
-                
-                // Также обрабатываем случаи с двойными кавычками
-                cleanCode = cleanCode.replace(/bg-\[url\(["']([^"']*)["']\)\]/g, (match, url) => {
-                    // Если URL содержит кавычки, экранируем их
-                    if (url.includes('"') || url.includes("'")) {
-                        const escapedUrl = url.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-                        return `bg-[url('${escapedUrl}')]`;
-                    }
-                    return match;
+                // Проблема: bg-[url('data:image/svg+xml,...')] содержит кавычки внутри SVG, которые ломают парсинг Babel
+                // Решение: заменяем кавычки внутри data URL на URL-encoded версии
+                cleanCode = cleanCode.replace(/bg-\[url\(['"](data:[^'"]*)['"]\)\]/g, (match, url) => {
+                    // В data URL уже должны быть экранированы кавычки, но если нет - заменяем на %22 и %27
+                    const fixedUrl = url.replace(/"/g, '%22').replace(/'/g, '%27');
+                    return `bg-[url('${fixedUrl}')]`;
                 });
                 
                 if (!cleanCode.includes('export default') && !cleanCode.includes('export')) {
@@ -267,14 +257,20 @@ function renderReactComponent(codeText, container) {
                 iframeCode = iframeCode.replace(/import\s+.*?from\s+['"][^'"]+['"];?/g, '');
                 
                 // ИСПРАВЛЕНИЕ: Экранируем проблемные кавычки в URL внутри className перед передачей в Babel
-                // Проблема: bg-[url('data:image/svg+xml,...')] содержит кавычки, которые ломают парсинг Babel
-                // Решение: заменяем кавычки внутри url() на HTML entities
+                // Проблема: bg-[url('data:image/svg+xml,...')] содержит кавычки внутри SVG, которые ломают парсинг Babel
+                // Решение: заменяем кавычки внутри data URL на URL-encoded версии
+                iframeCode = iframeCode.replace(/bg-\[url\(['"](data:[^'"]*)['"]\)\]/g, (match, url) => {
+                    // В data URL заменяем кавычки на URL-encoded версии
+                    const fixedUrl = url.replace(/"/g, '%22').replace(/'/g, '%27');
+                    return `bg-[url('${fixedUrl}')]`;
+                });
+                
+                // Также обрабатываем случаи, когда className содержит такие URL
                 iframeCode = iframeCode.replace(/className=["']([^"']*bg-\[url\([^)]+\)\][^"']*)["']/g, (match, className) => {
-                    // Находим все bg-[url(...)] внутри className и экранируем кавычки в URL
-                    const fixed = className.replace(/bg-\[url\(['"]([^'"]*)['"]\)\]/g, (urlMatch, url) => {
-                        // Экранируем кавычки внутри URL
-                        const escapedUrl = url.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-                        return `bg-[url('${escapedUrl}')]`;
+                    // Находим все bg-[url(...)] внутри className и исправляем кавычки
+                    const fixed = className.replace(/bg-\[url\(['"](data:[^'"]*)['"]\)\]/g, (urlMatch, url) => {
+                        const fixedUrl = url.replace(/"/g, '%22').replace(/'/g, '%27');
+                        return `bg-[url('${fixedUrl}')]`;
                     });
                     return `className="${fixed}"`;
                 });
