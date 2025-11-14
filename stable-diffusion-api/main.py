@@ -92,7 +92,7 @@ class GenerateResponse(BaseModel):
 
 def load_model():
     """Загружает модель Stable Diffusion 3.5 Medium"""
-    global pipe
+    global pipe, img2img_pipe_global
     if pipe is not None:
         return pipe
 
@@ -166,10 +166,8 @@ def load_model():
             sys.stdout.flush()
             
             try:
-                # ВАЖНО: объявляем global ДО использования переменных
-                global pipe, img2img_pipe_global
-                
                 # Загружаем text-to-image пайплайн (основной)
+                # global уже объявлен в начале функции
                 pipe = StableDiffusionPipeline.from_pretrained(
                     MODEL_ID,
                     torch_dtype=torch.float16 if device == "cuda" else torch.float32,
@@ -250,9 +248,7 @@ def load_model():
                 print("📦 Loading fallback model: CompVis/stable-diffusion-v1-4")
                 sys.stdout.flush()
                 
-                # ВАЖНО: объявляем global ДО использования переменных
-                global pipe, img2img_pipe_global
-                
+                # global уже объявлен в начале функции load_model()
                 pipe = StableDiffusionPipeline.from_pretrained(
                     "CompVis/stable-diffusion-v1-4",
                     torch_dtype=torch.float32,
