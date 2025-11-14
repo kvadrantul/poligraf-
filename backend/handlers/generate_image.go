@@ -17,6 +17,7 @@ import (
 type GenerateImageRequest struct {
 	Prompt         string `json:"prompt" binding:"required"`
 	ReferenceImage string `json:"referenceImage,omitempty"` // Base64 изображение-референс (опционально)
+	NegativePrompt string `json:"negativePrompt,omitempty"` // Негативный промпт (опционально)
 }
 
 // GenerateImageResponse структура для ответа генерации изображения
@@ -91,6 +92,9 @@ func generateImageWithStableDiffusion(apiUrl, prompt, referenceImage, negativePr
 		return "", fmt.Errorf("failed to marshal request: %w", err)
 	}
 
+	log.Printf("📤 Request body: %s", string(jsonData))
+	log.Printf("📤 Request URL: %s", apiEndpoint)
+
 	req, err := http.NewRequest("POST", apiEndpoint, strings.NewReader(string(jsonData)))
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)
@@ -133,8 +137,13 @@ func generateImageWithStableDiffusion(apiUrl, prompt, referenceImage, negativePr
 		return "", fmt.Errorf("failed to read response body: %w", err)
 	}
 
+	log.Printf("📥 Response body length: %d bytes", len(bodyBytes))
+	log.Printf("📥 Response body preview (first 200 chars): %s", string(bodyBytes[:min(200, len(bodyBytes))]))
+
 	var response GenerateImageResponse
 	if err := json.Unmarshal(bodyBytes, &response); err != nil {
+		log.Printf("❌ Failed to unmarshal response: %v", err)
+		log.Printf("❌ Response body: %s", string(bodyBytes))
 		return "", fmt.Errorf("failed to decode response: %w", err)
 	}
 
@@ -143,9 +152,13 @@ func generateImageWithStableDiffusion(apiUrl, prompt, referenceImage, negativePr
 	}
 
 	if response.ImageURL == "" {
+		log.Printf("❌ Empty imageUrl in response")
+		log.Printf("❌ Full response: %+v", response)
 		return "", fmt.Errorf("no image URL in response")
 	}
 
+	log.Printf("✅ Image URL length: %d bytes", len(response.ImageURL))
+	log.Printf("✅ Image URL preview: %s", response.ImageURL[:min(100, len(response.ImageURL))])
 	log.Println("✅ Image generated successfully by Stable Diffusion")
 	return response.ImageURL, nil
 }
