@@ -323,7 +323,7 @@ body {
     font-size: 14px;
     font-weight: 500;
     cursor: pointer;
-    transition: background 0.2s, opacity 0.2s;
+    transition: background 0.2s, opacity 0.2s, border-color 0.2s, color 0.2s;
     backdrop-filter: blur(10px);
 }
 
@@ -338,11 +338,18 @@ body {
     flex-shrink: 0;
 }
 
-/* Активное состояние для кнопки "Изображение" (тоггл) */
+/* Кнопка "Изображение" - неактивное состояние (темнее) */
+.image-generation-button {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.5);
+}
+
+/* Активное состояние для кнопки "Изображение" (тоггл) - светлее */
 .image-generation-button.active {
-    background: rgba(139, 92, 246, 0.2);
-    border-color: rgba(139, 92, 246, 0.5);
-    color: #c4b5fd;
+    background: rgba(139, 92, 246, 0.3);
+    border-color: rgba(139, 92, 246, 0.6);
+    color: #e9d5ff;
 }
 
 .input-wrapper {
