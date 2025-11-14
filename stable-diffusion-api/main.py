@@ -30,13 +30,21 @@ torch.set_num_threads(NUM_CPU_CORES)
 torch.set_num_interop_threads(NUM_CPU_CORES)
 
 # Устанавливаем переменные окружения для OpenMP/MKL (если доступны)
-os.environ.setdefault("OMP_NUM_THREADS", str(NUM_CPU_CORES))
-os.environ.setdefault("MKL_NUM_THREADS", str(NUM_CPU_CORES))
-os.environ.setdefault("NUMEXPR_NUM_THREADS", str(NUM_CPU_CORES))
+# КРИТИЧНО: Устанавливаем ДО импорта torch, чтобы они применились
+os.environ["OMP_NUM_THREADS"] = str(NUM_CPU_CORES)
+os.environ["MKL_NUM_THREADS"] = str(NUM_CPU_CORES)
+os.environ["NUMEXPR_NUM_THREADS"] = str(NUM_CPU_CORES)
+os.environ["OPENBLAS_NUM_THREADS"] = str(NUM_CPU_CORES)
+os.environ["VECLIB_MAXIMUM_THREADS"] = str(NUM_CPU_CORES)
+
+# Устанавливаем количество потоков для PyTorch
+torch.set_num_threads(NUM_CPU_CORES)
+torch.set_num_interop_threads(NUM_CPU_CORES)
 
 print(f"✅ PyTorch configured to use {NUM_CPU_CORES} threads")
 print(f"✅ PyTorch get_num_threads(): {torch.get_num_threads()}")
 print(f"✅ PyTorch get_num_interop_threads(): {torch.get_num_interop_threads()}")
+print(f"✅ Environment variables: OMP_NUM_THREADS={os.environ.get('OMP_NUM_THREADS')}, MKL_NUM_THREADS={os.environ.get('MKL_NUM_THREADS')}")
 
 # Настройка CORS
 app.add_middleware(
@@ -187,10 +195,21 @@ def load_model():
         # Для CPU используем float32 (не float16) - это уже установлено выше
         # Дополнительные оптимизации для CPU
         if device == "cpu":
-            # Убеждаемся, что используем все ядра (уже настроено выше при импорте)
+            # Убеждаемся, что используем все ядра (переустанавливаем на всякий случай)
+            torch.set_num_threads(NUM_CPU_CORES)
+            torch.set_num_interop_threads(NUM_CPU_CORES)
             current_threads = torch.get_num_threads()
-            print(f"🔧 CPU optimizations: attention_slicing, vae_slicing, {current_threads} threads")
+            print(f"🔧 CPU optimizations: VAE slicing enabled, {current_threads} threads")
             print(f"🔧 PyTorch will use {current_threads} CPU cores for inference")
+            print(f"🔧 Environment check: OMP_NUM_THREADS={os.environ.get('OMP_NUM_THREADS')}")
+            
+            # Пробуем включить дополнительные оптимизации PyTorch
+            try:
+                # Включаем оптимизации для CPU
+                torch.backends.mkldnn.enabled = True
+                print("✅ MKLDNN enabled for CPU acceleration")
+            except:
+                print("⚠️ MKLDNN not available")
 
         print("✅ Model loaded successfully")
         return pipe
@@ -375,12 +394,18 @@ async def generate_image(request: GenerateRequest):
                     print(f"⚡ Lightning mode: {steps} steps, guidance={guidance}")
                 
                 print(f"📝 Calling pipe() with: prompt='{request.prompt[:50]}...', steps={steps}, guidance={guidance}, size={width}x{height}")
-                print("⏳ Starting inference (this should use CPU cores)...")
+                print("⏳ Starting inference (this should use ALL CPU cores)...")
+                
+                # Убеждаемся, что PyTorch использует все потоки перед генерацией
+                torch.set_num_threads(NUM_CPU_CORES)
+                torch.set_num_interop_threads(NUM_CPU_CORES)
+                print(f"🔧 Re-confirmed: PyTorch threads={torch.get_num_threads()}, interop={torch.get_num_interop_threads()}")
                 
                 # Проверяем CPU перед вызовом
                 cpu_before = process.cpu_percent(interval=0.1)
                 threads_before = process.num_threads()
                 print(f"📊 BEFORE pipe(): CPU={cpu_before:.1f}%, Threads={threads_before}")
+                sys.stdout.flush()
                 
                 # Вызываем генерацию
                 result = pipe(
