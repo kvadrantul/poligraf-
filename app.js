@@ -11,6 +11,8 @@ const commentInput = document.getElementById('commentInput');
 const sendButton = document.getElementById('sendButton');
 const newButton = document.getElementById('newButton');
 const polygraphyButton = document.getElementById('polygraphyButton');
+const providerButton = document.getElementById('providerButton');
+const providerLabel = document.getElementById('providerLabel');
 const imageUploadButton = document.getElementById('imageUploadButton');
 const imageInput = document.getElementById('imageInput');
 const imagePreview = document.getElementById('imagePreview');
@@ -578,6 +580,13 @@ const SYSTEM_PROMPT = `Ты веб дизайнер элитный полигр�
 // Состояние включения/выключения системного промпта полиграфии
 let polygraphyModeEnabled = true; // По умолчанию включено
 
+// Состояние выбранного провайдера
+const PROVIDERS = {
+    V0: 'v0',
+    LOVABLE: 'lovable'
+};
+let currentProvider = localStorage.getItem('poligraf-provider') || PROVIDERS.V0; // По умолчанию v0.dev
+
 // Функция для обновления визуального состояния кнопки "Полиграфия"
 function updatePolygraphyButtonState() {
     if (polygraphyButton) {
@@ -587,6 +596,19 @@ function updatePolygraphyButtonState() {
             polygraphyButton.classList.remove('active');
         }
     }
+}
+
+// Функция для обновления визуального состояния кнопки провайдера
+function updateProviderButtonState() {
+    if (providerLabel) {
+        providerLabel.textContent = currentProvider === PROVIDERS.LOVABLE ? 'Lovable' : 'v0';
+    }
+    if (providerButton) {
+        providerButton.classList.toggle('lovable', currentProvider === PROVIDERS.LOVABLE);
+    }
+    // Сохраняем выбор в localStorage
+    localStorage.setItem('poligraf-provider', currentProvider);
+    console.log('✅ Provider changed to:', currentProvider);
 }
 
 // Функция для конвертации изображения в base64
@@ -763,7 +785,8 @@ ${truncatedHTML}
             },
             body: JSON.stringify({ 
                 userPrompt: userPrompt,
-                image: uploadedImageBase64 || null
+                image: uploadedImageBase64 || null,
+                provider: currentProvider // Передаем выбранный провайдер
             }),
             signal: controller.signal
         });
@@ -915,6 +938,20 @@ if (polygraphyButton) {
     updatePolygraphyButtonState();
 } else {
     console.error('Cannot add event listener: polygraphyButton is null');
+}
+
+// Обработчик кнопки переключения провайдера
+if (providerButton) {
+    providerButton.addEventListener('click', () => {
+        // Переключаем между v0 и Lovable
+        currentProvider = currentProvider === PROVIDERS.V0 ? PROVIDERS.LOVABLE : PROVIDERS.V0;
+        updateProviderButtonState();
+        tg.HapticFeedback.impactOccurred('light');
+    });
+    // Инициализируем состояние кнопки при загрузке
+    updateProviderButtonState();
+} else {
+    console.error('Cannot add event listener: providerButton is null');
 }
 
 // Обработчик кнопки загрузки изображения

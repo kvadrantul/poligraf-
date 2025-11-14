@@ -82,20 +82,48 @@ export default async function handler(req, res) {
     }
 
     try {
-        const { userPrompt, image } = req.body;
+        const { userPrompt, image, provider = 'v0' } = req.body;
 
         if (!userPrompt) {
             return res.status(400).json({ error: 'userPrompt is required' });
         }
 
-        // Получаем API ключ из переменных окружения
-        // Можно использовать либо V0_API_KEY (для v0.dev), либо OPENAI_API_KEY (для OpenAI)
+        console.log('📡 Request provider:', provider);
+
+        // Получаем API ключи из переменных окружения
         const v0ApiKey = process.env.V0_API_KEY;
+        const lovableApiKey = process.env.LOVABLE_API_KEY;
         const openaiApiKey = process.env.OPENAI_API_KEY;
 
-        // Определяем, какой API использовать
-        const useOpenAI = !v0ApiKey && openaiApiKey;
-        const apiKey = useOpenAI ? openaiApiKey : v0ApiKey;
+        let apiKey;
+        let useOpenAI = false;
+        let useLovable = false;
+
+        // Определяем, какой API использовать в зависимости от провайдера
+        if (provider === 'lovable' && lovableApiKey) {
+            useLovable = true;
+            apiKey = lovableApiKey;
+            console.log('✅ Using Lovable API');
+        } else if (provider === 'v0' && v0ApiKey) {
+            apiKey = v0ApiKey;
+            console.log('✅ Using v0.dev API');
+        } else if (!v0ApiKey && openaiApiKey) {
+            // Fallback на OpenAI если нет v0 ключа
+            useOpenAI = true;
+            apiKey = openaiApiKey;
+            console.log('⚠️ Using OpenAI API as fallback');
+        } else {
+            // Если выбран Lovable, но ключа нет, пробуем v0
+            if (provider === 'lovable' && v0ApiKey) {
+                console.log('⚠️ Lovable API key not found, falling back to v0.dev');
+                apiKey = v0ApiKey;
+            } else {
+                return res.status(500).json({ 
+                    error: `API key not configured for provider: ${provider}. Please set ${provider === 'lovable' ? 'LOVABLE_API_KEY' : 'V0_API_KEY'} in environment variables.`,
+                    note: 'Для v0.dev API нужен Premium или Team план. Можно использовать OpenAI API как альтернативу.'
+                });
+            }
+        }
 
         if (!apiKey) {
             return res.status(500).json({ 
@@ -152,6 +180,78 @@ export default async function handler(req, res) {
             const data = await apiResponse.json();
             generatedContent = data.choices?.[0]?.message?.content || 'No content generated';
 
+        } else if (useLovable) {
+            // Используем Lovable API
+            console.log('Using Lovable API');
+            console.log('User prompt length:', userPrompt.length);
+            console.log('User prompt preview:', userPrompt.substring(0, 200));
+            console.log('Has image:', !!image);
+            
+            // TODO: Замените на реальный URL Lovable API когда будет известен
+            // Предполагаемый формат (нужно уточнить в документации Lovable)
+            const lovableApiUrl = process.env.LOVABLE_API_URL || 'https://api.lovable.dev/v1/chat/completions';
+            
+            // Формируем контент сообщения пользователя
+            let userContent = userPrompt;
+            
+            // Если есть изображение, формируем массив с текстом и изображением
+            if (image) {
+                userContent = [
+                    {
+                        type: 'text',
+                        text: userPrompt
+                    },
+                    {
+                        type: 'image_url',
+                        image_url: {
+                            url: image
+                        }
+                    }
+                ];
+                console.log('✅ Image attached to Lovable API request');
+            }
+            
+            // Формируем сообщения для Lovable API
+            // TODO: Уточнить формат запроса Lovable API
+            const messages = [
+                {
+                    role: 'user',
+                    content: userContent
+                }
+            ];
+            
+            apiResponse = await fetch(lovableApiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model: 'gpt-4', // TODO: Уточнить модель Lovable
+                    messages: messages,
+                    temperature: 0.7,
+                }),
+            });
+
+            if (!apiResponse.ok) {
+                const errorText = await apiResponse.text();
+                console.error('Lovable API error:', {
+                    status: apiResponse.status,
+                    statusText: apiResponse.statusText,
+                    error: errorText
+                });
+                
+                return res.status(apiResponse.status).json({ 
+                    error: `Lovable API error: ${apiResponse.statusText}`,
+                    status: apiResponse.status,
+                    details: errorText
+                });
+            }
+
+            const data = await apiResponse.json();
+            generatedContent = data.choices?.[0]?.message?.content || 'No content generated';
+            console.log('✅ Lovable API response received');
+            
         } else {
             // Используем v0.dev API
             console.log('Using v0.dev API');
