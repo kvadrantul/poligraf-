@@ -44,6 +44,7 @@
 <body>
     <h1>Отладка сгенерированного изображения</h1>
     <button onclick="loadImage()">Загрузить изображение из localStorage</button>
+    <button onclick="checkBlobUrl()">Проверить Blob URL (из консоли)</button>
     <button onclick="clearImage()">Очистить</button>
     <div id="info" class="info"></div>
     <div id="imageContainer" class="image-container"></div>
@@ -86,8 +87,22 @@
         
         function clearImage() {
             localStorage.removeItem('poligraf-debug-generated-image');
+            sessionStorage.removeItem('poligraf-debug-generated-image');
             document.getElementById('info').innerHTML = '<p>Очищено</p>';
             document.getElementById('imageContainer').innerHTML = '';
+        }
+        
+        function checkBlobUrl() {
+            if (window.poligrafDebugImageBlobUrl) {
+                const img = document.createElement('img');
+                img.src = window.poligrafDebugImageBlobUrl;
+                img.style.border = '2px solid #0ff';
+                img.style.background = '#333';
+                document.getElementById('imageContainer').innerHTML = '<p>Изображение через Blob URL (из window.poligrafDebugImageBlobUrl):</p>';
+                document.getElementById('imageContainer').appendChild(img);
+            } else {
+                alert('window.poligrafDebugImageBlobUrl не найден. Откройте консоль в основном приложении и проверьте, создан ли blob URL.');
+            }
         }
         
         // Автоматически загружаем при открытии страницы

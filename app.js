@@ -753,10 +753,65 @@ async function generateImage(prompt, referenceImage) {
     // Отладочная проверка: сохраняем изображение в localStorage для просмотра
     if (data.imageUrl && data.imageUrl.startsWith('data:image')) {
         try {
-            localStorage.setItem('poligraf-debug-generated-image', data.imageUrl);
-            console.log('💾 Image saved to localStorage for debugging (key: poligraf-debug-generated-image)');
+            // Проверяем размер изображения
+            const imageSize = data.imageUrl.length;
+            const maxSize = 5 * 1024 * 1024; // 5MB лимит для большинства браузеров
+            
+            if (imageSize > maxSize) {
+                console.warn(`⚠️ Image too large for localStorage (${(imageSize / 1024 / 1024).toFixed(2)}MB > ${(maxSize / 1024 / 1024).toFixed(2)}MB)`);
+                console.warn('💡 Trying to save truncated version or use sessionStorage...');
+                
+                // Пробуем сохранить хотя бы превью
+                const truncated = data.imageUrl.substring(0, maxSize - 1000);
+                localStorage.setItem('poligraf-debug-generated-image-preview', truncated + '... [TRUNCATED]');
+                console.log('💾 Truncated image preview saved to localStorage');
+            } else {
+                localStorage.setItem('poligraf-debug-generated-image', data.imageUrl);
+                console.log(`💾 Image saved to localStorage (${(imageSize / 1024).toFixed(2)}KB)`);
+            }
+            
+            // Также сохраняем в sessionStorage как резерв
+            try {
+                sessionStorage.setItem('poligraf-debug-generated-image', data.imageUrl);
+                console.log('💾 Image also saved to sessionStorage');
+            } catch (e2) {
+                console.warn('⚠️ Could not save to sessionStorage:', e2);
+            }
+            
+            // Создаем blob URL для прямого доступа
+            try {
+                const base64Data = data.imageUrl.split(',')[1];
+                const byteCharacters = atob(base64Data);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+                const blob = new Blob([byteArray], { type: 'image/jpeg' });
+                const blobUrl = URL.createObjectURL(blob);
+                window.poligrafDebugImageBlobUrl = blobUrl;
+                console.log('🔗 Blob URL created:', blobUrl);
+                console.log('💡 You can access it via: window.poligrafDebugImageBlobUrl');
+            } catch (e3) {
+                console.warn('⚠️ Could not create blob URL:', e3);
+            }
+            
         } catch (e) {
-            console.warn('⚠️ Could not save image to localStorage:', e);
+            console.error('❌ Could not save image to localStorage:', e);
+            console.error('  - Error name:', e.name);
+            console.error('  - Error message:', e.message);
+            
+            // Пробуем сохранить хотя бы метаданные
+            try {
+                localStorage.setItem('poligraf-debug-image-meta', JSON.stringify({
+                    length: data.imageUrl.length,
+                    startsWith: data.imageUrl.substring(0, 50),
+                    timestamp: new Date().toISOString()
+                }));
+                console.log('💾 Image metadata saved instead');
+            } catch (e4) {
+                console.error('❌ Could not save metadata either:', e4);
+            }
         }
     } else {
         console.error('❌ Invalid image URL received from API');
