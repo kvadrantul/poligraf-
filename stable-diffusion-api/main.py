@@ -40,7 +40,7 @@ executor = ThreadPoolExecutor(max_workers=1)
 # - "stabilityai/sdxl-turbo" - быстрая (1-4 шага), коммерческое использование разрешено (CreativeML Open RAIL++-M)
 # - "runwayml/stable-diffusion-v1-5" - стандартная (20-50 шагов), коммерческое использование разрешено (CreativeML Open RAIL-M)
 # - "stabilityai/stable-diffusion-3-medium-diffusers" - требует HF token, НЕКОММЕРЧЕСКОЕ использование
-MODEL_ID = os.getenv("SD_MODEL_ID", "ByteDance/SDXL-Lightning")  # По умолчанию: быстрая модель с коммерческой лицензией
+MODEL_ID = os.getenv("SD_MODEL_ID", "stabilityai/sdxl-turbo")  # По умолчанию: быстрая модель с коммерческой лицензией
 HF_TOKEN = os.getenv("HUGGINGFACE_TOKEN", "")  # Для gated моделей (не используется для Lightning)
 
 
