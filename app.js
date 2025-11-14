@@ -796,6 +796,9 @@ function createProgressIndicator(container) {
     
     container.appendChild(progressContainer);
     
+    // Сохраняем ссылки на линии для возможности их скрытия
+    const lines = [line1, line2, line3, line4];
+    
     return {
         container: progressContainer,
         step1,
@@ -803,6 +806,7 @@ function createProgressIndicator(container) {
         step3,
         step4,
         imageCard,
+        lines,
         updateStep: (stepNumber, status) => {
             const steps = [null, step1, step2, step3, step4];
             const step = steps[stepNumber];
@@ -817,10 +821,19 @@ function createProgressIndicator(container) {
         },
         showImage: (imageUrl) => {
             const img = imageCard.querySelector('img');
-            if (img) {
-                img.src = imageUrl;
-                img.style.display = 'block';
-                imageCard.classList.add('show');
+            if (img && imageUrl) {
+                console.log('🖼️ Showing image in progress card, URL length:', imageUrl.length);
+                // Проверяем, что это data URL
+                if (imageUrl.startsWith('data:image')) {
+                    img.src = imageUrl;
+                    img.style.display = 'block';
+                    imageCard.classList.add('show');
+                    console.log('✅ Image displayed in progress card');
+                } else {
+                    console.warn('⚠️ Image URL is not a data URL:', imageUrl.substring(0, 50));
+                }
+            } else {
+                console.warn('⚠️ Image element not found or imageUrl is empty');
             }
         },
         remove: () => {
@@ -892,19 +905,23 @@ async function sendToV0(prompt) {
             // Обновляем прогресс: графика готова, показываем изображение
             if (progressIndicator) {
                 progressIndicator.updateStep(1, 'completed');
-                progressIndicator.updateStep(2, 'active');
+                // Небольшая задержка для анимации линии
                 setTimeout(() => {
-                    progressIndicator.updateStep(2, 'completed');
-                    if (generatedImage) {
-                        progressIndicator.showImage(generatedImage);
-                    }
-                    // Переходим к следующему этапу
+                    progressIndicator.updateStep(2, 'active');
                     setTimeout(() => {
-                        if (progressIndicator) {
-                            progressIndicator.updateStep(3, 'active');
+                        progressIndicator.updateStep(2, 'completed');
+                        if (generatedImage) {
+                            console.log('🖼️ Attempting to show generated image:', generatedImage.substring(0, 50) + '...');
+                            progressIndicator.showImage(generatedImage);
                         }
+                        // Переходим к следующему этапу
+                        setTimeout(() => {
+                            if (progressIndicator) {
+                                progressIndicator.updateStep(3, 'active');
+                            }
+                        }, 500);
                     }, 500);
-                }, 500);
+                }, 300);
             }
         } else {
             console.log('⏭️ Image generation disabled, skipping to v0.dev');
@@ -912,10 +929,33 @@ async function sendToV0(prompt) {
             if (uploadedImageBase64) {
                 generatedImage = uploadedImageBase64;
                 console.log('📷 Using uploaded image instead');
-            }
-            // Пропускаем этапы 1-2, сразу переходим к этапу 3
-            if (progressIndicator) {
-                progressIndicator.updateStep(3, 'active');
+                // Показываем загруженное изображение в прогресс-индикаторе
+                if (progressIndicator) {
+                    // Сразу показываем этап 2 как завершенный и изображение
+                    progressIndicator.updateStep(1, 'completed');
+                    setTimeout(() => {
+                        progressIndicator.updateStep(2, 'completed');
+                        progressIndicator.showImage(uploadedImageBase64);
+                        setTimeout(() => {
+                            progressIndicator.updateStep(3, 'active');
+                        }, 500);
+                    }, 300);
+                }
+            } else {
+                // Нет изображения вообще - пропускаем этапы 1-2, сразу переходим к этапу 3
+                if (progressIndicator) {
+                    // Скрываем этапы 1-2 и карточку изображения
+                    progressIndicator.step1.style.display = 'none';
+                    progressIndicator.step2.style.display = 'none';
+                    progressIndicator.imageCard.style.display = 'none';
+                    // Находим и скрываем линии перед ними
+                    const lines = progressIndicator.container.querySelectorAll('.progress-line');
+                    if (lines[0]) lines[0].style.display = 'none';
+                    if (lines[1]) lines[1].style.display = 'none';
+                    if (lines[2]) lines[2].style.display = 'none';
+                    // Показываем этап 3
+                    progressIndicator.updateStep(3, 'active');
+                }
             }
         }
 
