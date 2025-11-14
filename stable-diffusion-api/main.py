@@ -195,9 +195,9 @@ def load_model():
         # Для CPU используем float32 (не float16) - это уже установлено выше
         # Дополнительные оптимизации для CPU
         if device == "cpu":
-            # Убеждаемся, что используем все ядра (переустанавливаем на всякий случай)
+            # Убеждаемся, что используем все ядра (переустанавливаем num_threads)
+            # ВАЖНО: interop threads нельзя менять после начала работы
             torch.set_num_threads(NUM_CPU_CORES)
-            torch.set_num_interop_threads(NUM_CPU_CORES)
             current_threads = torch.get_num_threads()
             print(f"🔧 CPU optimizations: VAE slicing enabled, {current_threads} threads")
             print(f"🔧 PyTorch will use {current_threads} CPU cores for inference")
@@ -397,8 +397,8 @@ async def generate_image(request: GenerateRequest):
                 print("⏳ Starting inference (this should use ALL CPU cores)...")
                 
                 # Убеждаемся, что PyTorch использует все потоки перед генерацией
+                # ВАЖНО: interop threads нельзя менять после начала работы, только num_threads
                 torch.set_num_threads(NUM_CPU_CORES)
-                torch.set_num_interop_threads(NUM_CPU_CORES)
                 print(f"🔧 Re-confirmed: PyTorch threads={torch.get_num_threads()}, interop={torch.get_num_interop_threads()}")
                 
                 # Проверяем CPU перед вызовом
