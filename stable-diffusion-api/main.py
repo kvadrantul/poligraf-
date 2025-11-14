@@ -34,8 +34,13 @@ print(f"🔧 Using device: {device}")
 # Thread pool для выполнения блокирующих операций
 executor = ThreadPoolExecutor(max_workers=1)
 
-# Модель по умолчанию (используем открытую модель, не требующую авторизации)
-MODEL_ID = "runwayml/stable-diffusion-v1-5"
+# Модель по умолчанию
+# Варианты:
+# - "stabilityai/sdxl-turbo" - очень быстрая (1-4 шага), открытая
+# - "ByteDance/SDXL-Lightning" - еще быстрее (1-4 шага), открытая  
+# - "stabilityai/stable-diffusion-3-medium-diffusers" - требует HF token (gated)
+MODEL_ID = os.getenv("SD_MODEL_ID", "stabilityai/sdxl-turbo")  # По умолчанию быстрая модель
+HF_TOKEN = os.getenv("HUGGINGFACE_TOKEN", "")  # Для gated моделей (SD 3.5 Medium)
 
 
 class GenerateRequest(BaseModel):
@@ -62,13 +67,49 @@ def load_model():
     print("⏳ This may take a few minutes on first run...")
 
     try:
-        # Загружаем пайплайн (Stable Diffusion 2.1 использует StableDiffusionPipeline)
-        from diffusers import StableDiffusionPipeline
-        
-        pipe = StableDiffusionPipeline.from_pretrained(
-            MODEL_ID,
-            torch_dtype=torch.float16 if device == "cuda" else torch.float32,
-        )
+        # Определяем, какой пайплайн использовать в зависимости от модели
+        if "sdxl" in MODEL_ID.lower() or "turbo" in MODEL_ID.lower() or "lightning" in MODEL_ID.lower():
+            # SDXL модели используют StableDiffusionXLPipeline
+            from diffusers import StableDiffusionXLPipeline
+            print("📦 Using SDXL pipeline")
+            
+            # Для gated моделей нужен токен
+            kwargs = {
+                "torch_dtype": torch.float16 if device == "cuda" else torch.float32,
+            }
+            if HF_TOKEN:
+                kwargs["token"] = HF_TOKEN
+                print("🔑 Using Hugging Face token for gated model")
+            
+            pipe = StableDiffusionXLPipeline.from_pretrained(
+                MODEL_ID,
+                **kwargs
+            )
+        elif "stable-diffusion-3" in MODEL_ID.lower():
+            # SD 3.5 Medium использует StableDiffusion3Pipeline
+            from diffusers import StableDiffusion3Pipeline
+            print("📦 Using Stable Diffusion 3 pipeline")
+            
+            kwargs = {
+                "torch_dtype": torch.float16 if device == "cuda" else torch.float32,
+            }
+            if HF_TOKEN:
+                kwargs["token"] = HF_TOKEN
+                print("🔑 Using Hugging Face token for SD 3.5 Medium")
+            
+            pipe = StableDiffusion3Pipeline.from_pretrained(
+                MODEL_ID,
+                **kwargs
+            )
+        else:
+            # Стандартный Stable Diffusion (1.5, 2.1)
+            from diffusers import StableDiffusionPipeline
+            print("📦 Using standard Stable Diffusion pipeline")
+            
+            pipe = StableDiffusionPipeline.from_pretrained(
+                MODEL_ID,
+                torch_dtype=torch.float16 if device == "cuda" else torch.float32,
+            )
         pipe = pipe.to(device)
 
         # Оптимизация для ускорения
@@ -150,10 +191,26 @@ async def generate_image(request: GenerateRequest):
             else:
                 # Text-to-image режим
                 print("📝 Text-to-image mode")
+                
+                # Для Turbo/Lightning моделей используем меньше шагов и guidance_scale
+                steps = request.num_inference_steps
+                guidance = request.guidance_scale
+                
+                if "turbo" in MODEL_ID.lower():
+                    # Turbo работает лучше с 1-4 шагами
+                    steps = min(steps, 4)
+                    guidance = 0.0  # Turbo не использует guidance
+                    print(f"⚡ Turbo mode: {steps} steps, guidance={guidance}")
+                elif "lightning" in MODEL_ID.lower():
+                    # Lightning работает лучше с 1-4 шагами
+                    steps = min(steps, 4)
+                    guidance = 1.0  # Lightning использует низкий guidance
+                    print(f"⚡ Lightning mode: {steps} steps, guidance={guidance}")
+                
                 return pipe(
                     prompt=request.prompt,
-                    num_inference_steps=request.num_inference_steps,
-                    guidance_scale=request.guidance_scale,
+                    num_inference_steps=steps,
+                    guidance_scale=guidance,
                     width=width,
                     height=height,
                 )
