@@ -190,10 +190,14 @@ async def generate_image(request: GenerateRequest):
                 # Генерируем с референсом
                 print("📷 Using reference image (image-to-image mode)")
                 
-                # Для LCM моделей используем меньше шагов
+                # Для разных моделей используем оптимальные параметры
                 steps = request.num_inference_steps
                 guidance = request.guidance_scale
-                if "lcm" in MODEL_ID.lower():
+                if "v1-4" in MODEL_ID.lower() or "stable-diffusion-v1-4" in MODEL_ID.lower():
+                    steps = min(steps, 10)
+                    guidance = 7.5
+                    print(f"⚡⚡⚡⚡ SD 1.4 mode (SIMPLEST!): {steps} steps, guidance={guidance}")
+                elif "lcm" in MODEL_ID.lower():
                     steps = min(steps, 2)
                     guidance = 1.0
                     print(f"⚡⚡⚡ LCM mode (FASTEST!): {steps} steps, guidance={guidance}")
