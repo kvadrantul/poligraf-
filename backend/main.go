@@ -38,6 +38,7 @@ func main() {
 }
 
 func setupRoutes(r *gin.Engine) {
+	// API endpoints (должны быть ПЕРЕД статикой, чтобы /api/* не конфликтовали)
 	api := r.Group("/api")
 	{
 		api.POST("/generate", handlers.HandleGenerate)
@@ -45,5 +46,23 @@ func setupRoutes(r *gin.Engine) {
 		// api.POST("/v0/create-project", handlers.HandleCreateProject)
 		// api.POST("/v0/iterate", handlers.HandleIterate)
 	}
-}
 
+	// Отдаем статические файлы из корня проекта (на уровень выше backend/)
+	// Явно отдаем index.html для корня
+	r.GET("/", func(c *gin.Context) {
+		c.File("../index.html")
+	})
+	
+	// Отдаем остальные статические файлы (JS, CSS и т.д.)
+	r.StaticFile("/app.js", "../app.js")
+	r.StaticFile("/app.local.js", "../app.local.js")
+	r.StaticFile("/styles.css", "../styles.css")
+	r.StaticFile("/index.html", "../index.html")
+	
+	// Для всех остальных запросов (fallback)
+	r.NoRoute(func(c *gin.Context) {
+		// Пробуем отдать файл из корня проекта
+		filePath := "../" + c.Request.URL.Path
+		c.File(filePath)
+	})
+}
