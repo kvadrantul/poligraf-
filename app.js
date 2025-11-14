@@ -227,6 +227,25 @@ function renderReactComponent(codeText, container) {
                 cleanCode = cleanCode.replace(/^file="[^"]*"\s*\n?/gm, '');
                 cleanCode = processImports(cleanCode);
                 
+                // ИСПРАВЛЕНИЕ: Экранируем проблемные кавычки в URL внутри className
+                // Проблема: bg-[url('data:image/svg+xml,...')] содержит кавычки, которые ломают парсинг Babel
+                // Решение: заменяем одинарные кавычки внутри url() на экранированные
+                cleanCode = cleanCode.replace(/bg-\[url\(['"]([^'"]*)['"]\)\]/g, (match, url) => {
+                    // Экранируем кавычки внутри URL
+                    const escapedUrl = url.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+                    return `bg-[url('${escapedUrl}')]`;
+                });
+                
+                // Также обрабатываем случаи с двойными кавычками
+                cleanCode = cleanCode.replace(/bg-\[url\(["']([^"']*)["']\)\]/g, (match, url) => {
+                    // Если URL содержит кавычки, экранируем их
+                    if (url.includes('"') || url.includes("'")) {
+                        const escapedUrl = url.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+                        return `bg-[url('${escapedUrl}')]`;
+                    }
+                    return match;
+                });
+                
                 if (!cleanCode.includes('export default') && !cleanCode.includes('export')) {
                     const functionMatch = cleanCode.match(/(function\s+\w+|const\s+\w+\s*=\s*\(|const\s+\w+\s*=\s*function)/);
                     if (functionMatch) {
@@ -246,6 +265,19 @@ function renderReactComponent(codeText, container) {
                 }
                 
                 iframeCode = iframeCode.replace(/import\s+.*?from\s+['"][^'"]+['"];?/g, '');
+                
+                // ИСПРАВЛЕНИЕ: Экранируем проблемные кавычки в URL внутри className перед передачей в Babel
+                // Проблема: bg-[url('data:image/svg+xml,...')] содержит кавычки, которые ломают парсинг Babel
+                // Решение: заменяем кавычки внутри url() на HTML entities
+                iframeCode = iframeCode.replace(/className=["']([^"']*bg-\[url\([^)]+\)\][^"']*)["']/g, (match, className) => {
+                    // Находим все bg-[url(...)] внутри className и экранируем кавычки в URL
+                    const fixed = className.replace(/bg-\[url\(['"]([^'"]*)['"]\)\]/g, (urlMatch, url) => {
+                        // Экранируем кавычки внутри URL
+                        const escapedUrl = url.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+                        return `bg-[url('${escapedUrl}')]`;
+                    });
+                    return `className="${fixed}"`;
+                });
                 
                 let componentName = 'Component';
                 const exportMatch = iframeCode.match(/export\s+default\s+function\s+(\w+)/);
