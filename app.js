@@ -10,9 +10,7 @@ const resultContent = document.getElementById('resultContent');
 const commentInput = document.getElementById('commentInput');
 const sendButton = document.getElementById('sendButton');
 const newButton = document.getElementById('newButton');
-const polygraphyButton = document.getElementById('polygraphyButton');
-const providerButton = document.getElementById('providerButton');
-const providerLabel = document.getElementById('providerLabel');
+// Кнопки полиграфии и провайдера удалены - они всегда включены
 const imageUploadButton = document.getElementById('imageUploadButton');
 const imageInput = document.getElementById('imageInput');
 const imagePreview = document.getElementById('imagePreview');
@@ -587,42 +585,20 @@ function loadSavedPromptAndMarkup() {
     }
 }
 
-// Системный промпт для полиграфии (добавляется в начало каждого запроса)
-const SYSTEM_PROMPT = `Ты веб дизайнер элитный полиграфии ты верстаешь визитки журналы обложки открытки приглашения на праздники и так далее. Ты создаёшь дорогой стиль. Ты максимально точно используешь референсы изображений которые тебе дают. Ты максимально точно воспроизводишь графику и расположение рисунков если они есть в прикрепленном референсе. Ты идеальна работаешь со шрифтами текстом и превосходно располагаешь тексты и графику на верстке. Ты ничего не упрощаешь из того что тебе дают. Ты делаешь максимально глубокую и качественную графику и умеешь рисовать сложные картинки.`;
+// Системный промпт для полиграфии (всегда включен)
+const SYSTEM_PROMPT = `Ты веб дизайнер элитной полиграфии. Ты верстаешь визитки, журналы, обложки, открытки, приглашения на праздники и так далее в виде сайта. Ты создаёшь дорогой стиль. Ты максимально точно используешь референсы изображений которые тебе дают. Ты максимально точно воспроизводишь графику и расположение рисунков если они есть в прикрепленном референсе. Ты идеально работаешь со шрифтами, текстом и превосходно располагаешь тексты и графику на верстке. Ты ничего не упрощаешь из того что тебе дают. Ты делаешь максимально глубокую и качественную графику и умеешь рисовать сложные картинки.
 
-// Состояние включения/выключения системного промпта полиграфии
-let polygraphyModeEnabled = true; // По умолчанию включено
+ВАЖНО: ВСЕГДА возвращай валидный React/TSX код компонента. Верни ТОЛЬКО код, без текстовых объяснений. Код должен начинаться с export default function или const Component = и содержать JSX разметку.`;
 
-// Состояние выбранного провайдера
+// Полиграфия всегда включена
+const polygraphyModeEnabled = true;
+
+// Провайдер всегда v0.dev
 const PROVIDERS = {
     V0: 'v0',
     LOVABLE: 'lovable'
 };
-let currentProvider = localStorage.getItem('poligraf-provider') || PROVIDERS.V0; // По умолчанию v0.dev
-
-// Функция для обновления визуального состояния кнопки "Полиграфия"
-function updatePolygraphyButtonState() {
-    if (polygraphyButton) {
-        if (polygraphyModeEnabled) {
-            polygraphyButton.classList.add('active');
-        } else {
-            polygraphyButton.classList.remove('active');
-        }
-    }
-}
-
-// Функция для обновления визуального состояния кнопки провайдера
-function updateProviderButtonState() {
-    if (providerLabel) {
-        providerLabel.textContent = currentProvider === PROVIDERS.LOVABLE ? 'Lovable' : 'v0';
-    }
-    if (providerButton) {
-        providerButton.classList.toggle('lovable', currentProvider === PROVIDERS.LOVABLE);
-    }
-    // Сохраняем выбор в localStorage
-    localStorage.setItem('poligraf-provider', currentProvider);
-    console.log('✅ Provider changed to:', currentProvider);
-}
+const currentProvider = PROVIDERS.V0; // Всегда v0.dev
 
 // Функция для конвертации изображения в base64
 function convertImageToBase64(file) {
@@ -718,14 +694,9 @@ async function sendToV0(prompt) {
         const htmlKey = `poligraf-last-html-${userId}`;
         const lastHTML = localStorage.getItem(htmlKey);
         
-        // Если режим полиграфии включен, добавляем системный промпт в начало
-        let userPrompt = '';
-        if (polygraphyModeEnabled) {
-            userPrompt = SYSTEM_PROMPT + '\n\n';
-            console.log('✅ System prompt added (polygraphy mode enabled)');
-        } else {
-            console.log('ℹ️ System prompt disabled (polygraphy mode off)');
-        }
+        // Системный промпт всегда добавляется в начало (полиграфия всегда включена)
+        let userPrompt = SYSTEM_PROMPT + '\n\n';
+        console.log('✅ System prompt added (polygraphy mode always enabled)');
         
         // Если есть сохраненная разметка - используем её как референс
         if (lastHTML && lastHTML.length > 100) {
@@ -770,23 +741,19 @@ ${truncatedHTML}
             console.log('✅ Image will be attached to request (no text mention)');
         }
         
-        // Добавляем инструкцию возвращать React код
-        if (!polygraphyModeEnabled) {
-            userPrompt += '\n\nВерни React/TSX компонент с готовым дизайном.';
-            console.log('✅ Added React code instruction (polygraphy mode disabled)');
-        } else {
-            // В режиме полиграфии также добавляем напоминание
-            userPrompt += '\n\nВерни ТОЛЬКО код React/TSX компонента, без текстовых объяснений.';
-            console.log('✅ Added React code instruction (polygraphy mode enabled)');
-        }
+        // Инструкция возвращать React код уже включена в SYSTEM_PROMPT
+        // Дополнительно напоминаем в конце
+        userPrompt += '\n\nВерни ТОЛЬКО код React/TSX компонента, без текстовых объяснений.';
+        console.log('✅ React code instruction included in prompt');
         
         // Логируем финальную структуру промпта для отладки
         console.log('📋 Final prompt structure:');
         console.log('  - Length:', userPrompt.length);
         console.log('  - Preview (first 500 chars):', userPrompt.substring(0, 500));
-        console.log('  - Has system prompt:', userPrompt.includes('веб дизайнер элитный полиграфии'));
+        console.log('  - Has system prompt:', userPrompt.includes('веб дизайнер элитной полиграфии'));
         console.log('  - Has HTML reference:', userPrompt.includes('возьми за основу'));
         console.log('  - Has user prompt:', userPrompt.includes(prompt));
+        console.log('  - Has React instruction:', userPrompt.includes('React/TSX'));
 
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 90000); // Увеличено до 90 секунд
@@ -825,7 +792,8 @@ ${truncatedHTML}
         console.log('  - Result type:', typeof generatedCode);
         console.log('  - Result length:', generatedCode?.length || 0);
         console.log('  - Result preview (first 300 chars):', generatedCode?.substring(0, 300) || 'N/A');
-        console.log('  - Polygraphy mode:', polygraphyModeEnabled ? 'enabled' : 'disabled');
+        console.log('  - Polygraphy mode: always enabled');
+        console.log('  - Provider: always v0.dev');
         
         // Отображаем результат (заменяет предыдущий контент)
         displayResult(generatedCode);
@@ -939,33 +907,9 @@ if (newButton) {
     console.error('Cannot add event listener: newButton is null');
 }
 
-// Обработчик кнопки-тумблера "Полиграфия"
-if (polygraphyButton) {
-    polygraphyButton.addEventListener('click', () => {
-        polygraphyModeEnabled = !polygraphyModeEnabled;
-        updatePolygraphyButtonState();
-        tg.HapticFeedback.impactOccurred('light');
-        console.log('✅ Polygraphy mode:', polygraphyModeEnabled ? 'enabled' : 'disabled');
-    });
-    // Инициализируем состояние кнопки при загрузке
-    updatePolygraphyButtonState();
-} else {
-    console.error('Cannot add event listener: polygraphyButton is null');
-}
-
-// Обработчик кнопки переключения провайдера
-if (providerButton) {
-    providerButton.addEventListener('click', () => {
-        // Переключаем между v0 и Lovable
-        currentProvider = currentProvider === PROVIDERS.V0 ? PROVIDERS.LOVABLE : PROVIDERS.V0;
-        updateProviderButtonState();
-        tg.HapticFeedback.impactOccurred('light');
-    });
-    // Инициализируем состояние кнопки при загрузке
-    updateProviderButtonState();
-} else {
-    console.error('Cannot add event listener: providerButton is null');
-}
+// Кнопки полиграфии и провайдера удалены - они всегда включены
+// Полиграфия: всегда enabled
+// Провайдер: всегда v0.dev
 
 // Обработчик кнопки загрузки изображения
 if (imageUploadButton && imageInput) {
