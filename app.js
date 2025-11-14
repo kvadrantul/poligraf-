@@ -280,74 +280,60 @@ function renderReactComponent(codeText, container) {
                 // которая может обрываться, оставляя незакрытый template literal, что ломает парсинг Babel
                 // Решение: находим все незакрытые template literals в backgroundImage и закрываем их правильно
                 
-                // Ищем все backgroundImage с template literals, которые могут быть незакрыты
-                // Паттерн: backgroundImage: `url('data:image... (может быть обрезан)
-                iframeCode = iframeCode.replace(/backgroundImage:\s*`url\((['"])(data:image[^`]*?)(?:\1\)`|(?=[,}])|$)/g, (match, quote, url, offset, string) => {
-                    // Проверяем, закрыт ли template literal
-                    const matchEnd = offset + match.length;
-                    const afterMatch = string.substring(matchEnd);
-                    
-                    // Если после совпадения нет закрывающих символов )`, значит template literal не закрыт
-                    if (!afterMatch.match(/^\s*\)`/)) {
-                        // Закрываем template literal правильно
-                        // Заменяем одинарные кавычки внутри URL на двойные, чтобы избежать конфликта
+                // Простое решение: находим все строки с backgroundImage, которые содержат незакрытый template literal
+                // и закрываем их, добавляя )` в конце строки, если его нет
+                iframeCode = iframeCode.replace(/backgroundImage:\s*`url\((['"])(data:image[^`]*?)(?:\1\)`|$)/g, (match, quote, url) => {
+                    // Если match не заканчивается на )`, значит template literal не закрыт
+                    if (!match.endsWith(')`')) {
+                        // Заменяем одинарные кавычки на двойные внутри URL
                         let fixedUrl = url.replace(/'/g, '"').trim();
                         
-                        // Если URL не пустой, формируем правильный backgroundImage
+                        // Если URL не пустой, закрываем template literal правильно
                         if (fixedUrl && fixedUrl.length > 0) {
                             return `backgroundImage: \`url("${fixedUrl}")\``;
                         } else {
-                            // Если URL пустой, удаляем backgroundImage полностью
+                            // Если URL пустой, возвращаем пустую строку (удаляем backgroundImage)
                             return '';
                         }
                     }
                     return match;
                 });
                 
-                // Дополнительная проверка: находим все незакрытые template literals в backgroundImage
+                // Дополнительная проверка: находим строки с незакрытыми template literals построчно
                 // и закрываем их, если они обрезаны
                 const lines = iframeCode.split('\n');
-                const fixedLines = [];
-                
                 for (let i = 0; i < lines.length; i++) {
                     const line = lines[i];
                     
-                    // Проверяем, есть ли в строке незакрытый template literal в backgroundImage
-                    if (line.includes('backgroundImage:') && line.includes('`url(') && !line.includes(')`')) {
-                        // Находим начало URL
-                        const urlMatch = line.match(/backgroundImage:\s*`url\((['"])(data:image[^`]*)/);
-                        if (urlMatch) {
-                            const quote = urlMatch[1];
-                            const urlStart = urlMatch[2];
-                            const urlStartIndex = line.indexOf(urlStart);
-                            
-                            // Извлекаем URL до конца строки или до следующего символа
-                            let url = line.substring(urlStartIndex);
-                            // Убираем возможные закрывающие символы
-                            url = url.replace(/\)`|`|,|}/g, '').trim();
-                            
-                            // Заменяем одинарные кавычки на двойные
-                            url = url.replace(/'/g, '"');
-                            
-                            // Формируем правильную строку
-                            if (url && url.length > 0) {
-                                const beforeUrl = line.substring(0, urlStartIndex);
-                                fixedLines.push(`${beforeUrl}${url}")\``);
-                            } else {
-                                // Если URL пустой, удаляем всю строку с backgroundImage
-                                fixedLines.push(line.replace(/backgroundImage:\s*`url\([^`]*/, ''));
+                    // Проверяем, есть ли незакрытый template literal в backgroundImage
+                    if (line.includes('backgroundImage:') && line.includes('`url(') && !line.trim().endsWith(')`')) {
+                        // Находим позицию начала URL
+                        const urlStartMatch = line.match(/backgroundImage:\s*`url\((['"])(data:image)/);
+                        if (urlStartMatch) {
+                            const urlStartIndex = line.indexOf('data:image');
+                            if (urlStartIndex > 0) {
+                                // Извлекаем все после data:image до конца строки
+                                let urlPart = line.substring(urlStartIndex);
+                                // Убираем возможные лишние символы в конце
+                                urlPart = urlPart.replace(/[`),}\s]*$/, '').trim();
+                                
+                                // Заменяем одинарные кавычки на двойные
+                                urlPart = urlPart.replace(/'/g, '"');
+                                
+                                // Если URL не пустой, формируем правильную строку
+                                if (urlPart && urlPart.length > 0) {
+                                    const beforeUrl = line.substring(0, urlStartIndex);
+                                    lines[i] = `${beforeUrl}${urlPart}")\``;
+                                } else {
+                                    // Если URL пустой, удаляем backgroundImage из строки
+                                    lines[i] = line.replace(/backgroundImage:\s*`url\([^`]*/, '').trim();
+                                }
                             }
-                        } else {
-                            fixedLines.push(line);
                         }
-                    } else {
-                        fixedLines.push(line);
                     }
                 }
                 
-                if (fixedLines.length !== lines.length || fixedLines.some((line, i) => line !== lines[i])) {
-                    iframeCode = fixedLines.join('\n');
-                }
+                iframeCode = lines.join('\n');
                 
                 let componentName = 'Component';
                 const exportMatch = iframeCode.match(/export\s+default\s+function\s+(\w+)/);
