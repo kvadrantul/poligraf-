@@ -2,6 +2,7 @@
 Stable Diffusion 3.5 Medium API Server
 Локальный сервер для генерации изображений через Stable Diffusion 3.5 Medium
 """
+import asyncio
 import base64
 import io
 import os
@@ -108,10 +109,8 @@ async def generate_image(request: GenerateRequest):
         # Загружаем модель если еще не загружена (в отдельном потоке, чтобы не блокировать)
         if pipe is None:
             print("📦 Loading model in background thread...")
-            # Запускаем загрузку модели в отдельном потоке
-            future = executor.submit(load_model)
-            # Ждем завершения загрузки
-            future.result(timeout=300)  # 5 минут таймаут на загрузку
+            # Используем asyncio.to_thread для неблокирующей загрузки
+            await asyncio.to_thread(load_model)
             print("✅ Model loaded, proceeding with generation")
 
         print(f"🎨 Generating image with prompt: {request.prompt[:100]}...")
@@ -153,9 +152,11 @@ async def generate_image(request: GenerateRequest):
                     height=request.height,
                 )
         
-        # Запускаем генерацию в отдельном потоке
-        future = executor.submit(generate)
-        result = future.result(timeout=300)  # 5 минут таймаут на генерацию
+        # Запускаем генерацию в отдельном потоке через asyncio (не блокирует event loop)
+        result = await asyncio.wait_for(
+            asyncio.to_thread(generate),
+            timeout=900.0  # 15 минут таймаут на генерацию (CPU может быть медленным)
+        )
 
         # Получаем изображение
         image = result.images[0]

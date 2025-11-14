@@ -15,7 +15,7 @@ import (
 
 // GenerateImageRequest структура для запроса генерации изображения
 type GenerateImageRequest struct {
-	Prompt      string `json:"prompt" binding:"required"`
+	Prompt         string `json:"prompt" binding:"required"`
 	ReferenceImage string `json:"referenceImage,omitempty"` // Base64 изображение-референс (опционально)
 }
 
@@ -64,16 +64,16 @@ func HandleGenerateImage(c *gin.Context) {
 // generateImageWithStableDiffusion генерирует изображение через локальный Stable Diffusion API
 func generateImageWithStableDiffusion(apiUrl, prompt, referenceImage string) (string, error) {
 	apiEndpoint := fmt.Sprintf("%s/generate", apiUrl)
-	
+
 	// Формируем запрос
 	requestBody := map[string]interface{}{
-		"prompt":             prompt,
+		"prompt":              prompt,
 		"num_inference_steps": 28,
-		"guidance_scale":     7.0,
-		"width":              1024,
-		"height":             1024,
+		"guidance_scale":      7.0,
+		"width":               1024,
+		"height":              1024,
 	}
-	
+
 	// Если есть референс, добавляем его
 	if referenceImage != "" {
 		requestBody["reference_image"] = referenceImage
@@ -92,11 +92,11 @@ func generateImageWithStableDiffusion(apiUrl, prompt, referenceImage string) (st
 
 	req.Header.Set("Content-Type", "application/json")
 
-	// Увеличиваем таймаут для генерации (может занять 30-60 секунд)
+	// Увеличиваем таймаут для генерации (на CPU может занять 5-15 минут)
 	client := &http.Client{
-		Timeout: 120 * time.Second,
+		Timeout: 900 * time.Second, // 15 минут для CPU генерации
 	}
-	
+
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("failed to send request to Stable Diffusion API: %w", err)
@@ -132,4 +132,3 @@ func min(a, b int) int {
 	}
 	return b
 }
-
