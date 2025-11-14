@@ -229,11 +229,13 @@ function renderReactComponent(codeText, container) {
                 
                 // ИСПРАВЛЕНИЕ: Экранируем проблемные кавычки в URL внутри className
                 // Проблема: bg-[url('data:image/svg+xml,...')] содержит кавычки внутри SVG, которые ломают парсинг Babel
-                // Решение: заменяем кавычки внутри data URL на URL-encoded версии
-                cleanCode = cleanCode.replace(/bg-\[url\(['"](data:[^'"]*)['"]\)\]/g, (match, url) => {
-                    // В data URL уже должны быть экранированы кавычки, но если нет - заменяем на %22 и %27
-                    const fixedUrl = url.replace(/"/g, '%22').replace(/'/g, '%27');
-                    return `bg-[url('${fixedUrl}')]`;
+                // Решение: находим все bg-[url(...)] и экранируем кавычки внутри URL
+                cleanCode = cleanCode.replace(/bg-\[url\((['"])(.*?)\1\)\]/g, (match, quote, url) => {
+                    // Заменяем кавычки внутри URL на URL-encoded версии
+                    // Но не трогаем уже экранированные символы (%22, %27)
+                    const fixedUrl = url.replace(/(?<!%)(?<!%2)(?<!%22)"/g, '%22')
+                                        .replace(/(?<!%)(?<!%2)(?<!%27)'/g, '%27');
+                    return `bg-[url(${quote}${fixedUrl}${quote})]`;
                 });
                 
                 if (!cleanCode.includes('export default') && !cleanCode.includes('export')) {
@@ -258,21 +260,16 @@ function renderReactComponent(codeText, container) {
                 
                 // ИСПРАВЛЕНИЕ: Экранируем проблемные кавычки в URL внутри className перед передачей в Babel
                 // Проблема: bg-[url('data:image/svg+xml,...')] содержит кавычки внутри SVG, которые ломают парсинг Babel
-                // Решение: заменяем кавычки внутри data URL на URL-encoded версии
-                iframeCode = iframeCode.replace(/bg-\[url\(['"](data:[^'"]*)['"]\)\]/g, (match, url) => {
-                    // В data URL заменяем кавычки на URL-encoded версии
-                    const fixedUrl = url.replace(/"/g, '%22').replace(/'/g, '%27');
-                    return `bg-[url('${fixedUrl}')]`;
-                });
-                
-                // Также обрабатываем случаи, когда className содержит такие URL
-                iframeCode = iframeCode.replace(/className=["']([^"']*bg-\[url\([^)]+\)\][^"']*)["']/g, (match, className) => {
-                    // Находим все bg-[url(...)] внутри className и исправляем кавычки
-                    const fixed = className.replace(/bg-\[url\(['"](data:[^'"]*)['"]\)\]/g, (urlMatch, url) => {
-                        const fixedUrl = url.replace(/"/g, '%22').replace(/'/g, '%27');
-                        return `bg-[url('${fixedUrl}')]`;
-                    });
-                    return `className="${fixed}"`;
+                // Решение: находим все bg-[url(...)] и экранируем кавычки внутри URL
+                iframeCode = iframeCode.replace(/bg-\[url\((['"])(.*?)\1\)\]/g, (match, quote, url) => {
+                    // Заменяем кавычки внутри URL на URL-encoded версии
+                    // Используем простую замену, т.к. lookbehind может не работать во всех браузерах
+                    let fixedUrl = url;
+                    // Заменяем двойные кавычки, которые не являются частью %22
+                    fixedUrl = fixedUrl.replace(/([^%]|^)"/g, '$1%22');
+                    // Заменяем одинарные кавычки, которые не являются частью %27
+                    fixedUrl = fixedUrl.replace(/([^%]|^)'/g, '$1%27');
+                    return `bg-[url(${quote}${fixedUrl}${quote})]`;
                 });
                 
                 let componentName = 'Component';
