@@ -309,49 +309,8 @@ body {
     letter-spacing: 0.5px;
 }
 
-/* Кнопка "Новый" над полем ввода */
-.image-generation-button {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 50px;
-    padding: 10px 20px;
-    color: #ffffff;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background 0.2s, opacity 0.2s;
-    backdrop-filter: blur(10px);
-}
-
-.image-generation-button.active {
-    background: rgba(139, 92, 246, 0.2);
-    border-color: rgba(139, 92, 246, 0.5);
-    color: #c4b5fd;
-}
-
-.image-generation-button:hover {
-    background: rgba(255, 255, 255, 0.15);
-}
-
-.image-generation-button.active:hover {
-    background: rgba(139, 92, 246, 0.3);
-}
-
-.image-generation-button:active {
-    background: rgba(255, 255, 255, 0.15);
-    opacity: 0.8;
-}
-
-.image-generation-button svg {
-    width: 18px;
-    height: 18px;
-    flex-shrink: 0;
-}
-
+/* Кнопки над полем ввода */
+.image-generation-button,
 .new-button {
     display: flex;
     align-items: center;
@@ -369,15 +328,28 @@ body {
     backdrop-filter: blur(10px);
 }
 
+.image-generation-button:active,
 .new-button:active {
     background: rgba(255, 255, 255, 0.15);
     opacity: 0.8;
 }
 
+.image-generation-button svg,
 .new-button svg {
     width: 18px;
     height: 18px;
     flex-shrink: 0;
+}
+
+/* Активное состояние для кнопки генерации изображения */
+.image-generation-button.active {
+    background: rgba(139, 92, 246, 0.2);
+    border-color: rgba(139, 92, 246, 0.5);
+    color: #c4b5fd;
+}
+
+.image-generation-button.active:hover {
+    background: rgba(139, 92, 246, 0.3);
 }
 
 .input-wrapper {
