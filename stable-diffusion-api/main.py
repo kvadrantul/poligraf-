@@ -246,13 +246,28 @@ async def generate_image(request: GenerateRequest):
         # Получаем изображение
         image = result.images[0]
 
-        # Конвертируем в base64
+        # Конвертируем в base64 с оптимизацией размера
+        # Используем JPEG с качеством 85% для уменьшения размера (вместо PNG)
         buffered = io.BytesIO()
-        image.save(buffered, format="PNG")
+        # Конвертируем RGBA в RGB для JPEG (JPEG не поддерживает прозрачность)
+        if image.mode == 'RGBA':
+            # Создаем белый фон
+            rgb_image = Image.new('RGB', image.size, (255, 255, 255))
+            rgb_image.paste(image, mask=image.split()[3])  # Используем альфа-канал как маску
+            image = rgb_image
+        elif image.mode != 'RGB':
+            image = image.convert('RGB')
+        
+        # Сохраняем как JPEG с качеством 85% для уменьшения размера
+        image.save(buffered, format="JPEG", quality=85, optimize=True)
         img_base64 = base64.b64encode(buffered.getvalue()).decode()
+        
+        # Логируем размер для отладки
+        original_size = len(img_base64)
+        print(f"📏 Image size: {original_size} base64 chars ({original_size * 3 // 4} bytes)")
 
         # Формируем data URL
-        image_url = f"data:image/png;base64,{img_base64}"
+        image_url = f"data:image/jpeg;base64,{img_base64}"
 
         print("✅ Image generated successfully")
         return GenerateResponse(imageUrl=image_url)

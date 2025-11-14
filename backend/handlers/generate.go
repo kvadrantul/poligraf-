@@ -148,6 +148,14 @@ func callV0(apiKey, userPrompt, image string) (string, error) {
 
 	// Если есть изображение, формируем массив
 	if image != "" {
+		imageSize := len(image)
+		log.Printf("📷 Image size: %d chars (%.2f MB)", imageSize, float64(imageSize)/1024/1024)
+		
+		// Проверяем размер изображения (v0.dev может иметь лимиты)
+		if imageSize > 10*1024*1024 { // 10MB лимит
+			log.Printf("⚠️ Image size exceeds 10MB, may cause issues with v0.dev API")
+		}
+		
 		userContent = []map[string]interface{}{
 			{
 				"type": "text",
@@ -290,10 +298,14 @@ func callV0(apiKey, userPrompt, image string) (string, error) {
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		log.Printf("❌ Failed to decode v0.dev response: %v", err)
+		log.Printf("Response body (first 500 chars): %s", string(bodyBytes)[:min(500, len(string(bodyBytes)))])
 		return "", fmt.Errorf("failed to decode response: %w", err)
 	}
 
 	if len(response.Choices) == 0 {
+		log.Println("❌ No choices in v0.dev response")
 		return "", fmt.Errorf("no content generated")
 	}
 
@@ -302,10 +314,11 @@ func callV0(apiKey, userPrompt, image string) (string, error) {
 		content = response.Choices[0].Message.Text
 	}
 	if content == "" {
+		log.Println("❌ Empty content in v0.dev response")
 		return "", fmt.Errorf("no content generated")
 	}
 
-	log.Println("✅ v0.dev API response received")
+	log.Printf("✅ v0.dev API response received: %d chars", len(content))
 	return content, nil
 }
 

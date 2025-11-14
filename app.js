@@ -852,11 +852,27 @@ ${truncatedHTML}
         }
 
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || `Ошибка: ${response.status} ${response.statusText}`);
+            let errorMessage = `Ошибка: ${response.status} ${response.statusText}`;
+            try {
+                const errorData = await response.json();
+                errorMessage = errorData.error || errorMessage;
+                console.error('❌ API Error:', errorData);
+            } catch (e) {
+                const errorText = await response.text();
+                console.error('❌ API Error (text):', errorText);
+                errorMessage = errorText || errorMessage;
+            }
+            throw new Error(errorMessage);
         }
 
         const data = await response.json();
+        console.log('📦 Raw API response:', {
+            hasResult: 'result' in data,
+            hasCode: 'code' in data,
+            hasMarkup: 'markup' in data,
+            keys: Object.keys(data)
+        });
+        
         let generatedCode = data.result || data.code || data.markup || data;
         
         // Извлекаем код из markdown блоков (```tsx ... ``` или ```jsx ... ```)
@@ -886,6 +902,13 @@ ${truncatedHTML}
         console.log('  - Result preview (first 300 chars):', generatedCode?.substring(0, 300) || 'N/A');
         console.log('  - Polygraphy mode: always enabled');
         console.log('  - Provider: always v0.dev');
+        
+        // Проверяем, что код не пустой
+        if (!generatedCode || generatedCode.trim().length < 10) {
+            console.error('❌ Empty or invalid code received');
+            resultContent.innerHTML = '<div class="error-message">Получен пустой результат от API. Попробуйте еще раз.</div>';
+            return;
+        }
         
         // Отображаем результат (заменяет предыдущий контент)
         displayResult(generatedCode);
