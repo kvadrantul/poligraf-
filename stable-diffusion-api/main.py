@@ -328,6 +328,8 @@ async def generate_image(request: GenerateRequest):
 
         print(f"🎨 Generating image with prompt: {request.prompt[:100]}...")
         print(f"📷 Has reference image: {request.reference_image is not None}")
+        print(f"📷 Reference image value: {request.reference_image[:100] if request.reference_image and len(request.reference_image) > 100 else request.reference_image}")
+        print(f"📷 Reference image length: {len(request.reference_image) if request.reference_image else 0}")
 
         # Генерируем изображение в отдельном потоке, чтобы не блокировать event loop
         def generate():
@@ -361,7 +363,11 @@ async def generate_image(request: GenerateRequest):
             print(f"🔧 PyTorch interop threads: {torch.get_num_interop_threads()}")
             
             # Подготовка входных данных
-            if request.reference_image:
+            # ВАЖНО: проверяем что reference_image не None и не пустая строка
+            has_reference = request.reference_image is not None and request.reference_image.strip() != ""
+            print(f"🔍 Checking reference image: is_not_none={request.reference_image is not None}, is_not_empty={request.reference_image.strip() != '' if request.reference_image else False}, has_reference={has_reference}")
+            
+            if has_reference:
                 # Image-to-image режим
                 # Декодируем base64 референс
                 if request.reference_image.startswith("data:"):
