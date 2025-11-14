@@ -391,12 +391,12 @@ async def generate_image(request: GenerateRequest):
                 if "v1-4" in MODEL_ID.lower() or "stable-diffusion-v1-4" in MODEL_ID.lower():
                     steps = min(steps, 10)
                     guidance = 7.5
-                    strength = 0.7  # Для SD 1.4 используем среднюю силу
+                    strength = 0.75  # Увеличиваем силу для лучшего сохранения элементов из референса
                     print(f"⚡⚡⚡⚡ SD 1.4 mode (SIMPLEST!): {steps} steps, guidance={guidance}, strength={strength}")
                 elif "lcm" in MODEL_ID.lower():
                     steps = max(steps, 4)  # LCM минимум 4 шага для нормального качества
                     guidance = 2.0
-                    strength = 0.8  # Для LCM используем более высокую силу для лучшего извлечения графики
+                    strength = 0.85  # Увеличиваем силу для максимального сохранения элементов из референса
                     print(f"⚡⚡⚡ LCM mode (OPTIMIZED): {steps} steps, guidance={guidance}, strength={strength}")
                 
                 # Негативный промпт для image-to-image (БЕЗ "black image"!)
