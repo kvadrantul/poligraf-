@@ -5,6 +5,7 @@ Stable Diffusion 3.5 Medium API Server
 import base64
 import io
 import os
+from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 
 import torch
@@ -28,6 +29,9 @@ app.add_middleware(
 pipe = None
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"🔧 Using device: {device}")
+
+# Thread pool для выполнения блокирующих операций
+executor = ThreadPoolExecutor(max_workers=1)
 
 # Модель по умолчанию (используем открытую модель, не требующую авторизации)
 MODEL_ID = "runwayml/stable-diffusion-v1-5"
@@ -101,48 +105,57 @@ async def generate_image(request: GenerateRequest):
     Поддерживает image-to-image если передан reference_image
     """
     try:
-        # Загружаем модель если еще не загружена
+        # Загружаем модель если еще не загружена (в отдельном потоке, чтобы не блокировать)
         if pipe is None:
-            load_model()
+            print("📦 Loading model in background thread...")
+            # Запускаем загрузку модели в отдельном потоке
+            future = executor.submit(load_model)
+            # Ждем завершения загрузки
+            future.result(timeout=300)  # 5 минут таймаут на загрузку
+            print("✅ Model loaded, proceeding with generation")
 
         print(f"🎨 Generating image with prompt: {request.prompt[:100]}...")
         print(f"📷 Has reference image: {request.reference_image is not None}")
 
-        # Подготовка входных данных
-        if request.reference_image:
-            # Image-to-image режим
-            # Декодируем base64 референс
-            if request.reference_image.startswith("data:"):
-                # Убираем data URL префикс
-                base64_data = request.reference_image.split(",")[1]
+        # Генерируем изображение в отдельном потоке, чтобы не блокировать event loop
+        def generate():
+            # Подготовка входных данных
+            if request.reference_image:
+                # Image-to-image режим
+                # Декодируем base64 референс
+                if request.reference_image.startswith("data:"):
+                    # Убираем data URL префикс
+                    base64_data = request.reference_image.split(",")[1]
+                else:
+                    base64_data = request.reference_image
+
+                image_bytes = base64.b64decode(base64_data)
+                from PIL import Image
+                reference_img = Image.open(io.BytesIO(image_bytes))
+
+                # Генерируем с референсом
+                print("📷 Using reference image (image-to-image mode)")
+                return pipe(
+                    prompt=request.prompt,
+                    num_inference_steps=request.num_inference_steps,
+                    guidance_scale=request.guidance_scale,
+                    width=request.width,
+                    height=request.height,
+                )
             else:
-                base64_data = request.reference_image
-
-            image_bytes = base64.b64decode(base64_data)
-            from PIL import Image
-            reference_img = Image.open(io.BytesIO(image_bytes))
-
-            # Генерируем с референсом
-            # Для SD3 нужно использовать img2img пайплайн
-            # Пока используем текстовый промпт с описанием референса
-            print("📷 Using reference image (image-to-image mode)")
-            result = pipe(
-                prompt=request.prompt,
-                num_inference_steps=request.num_inference_steps,
-                guidance_scale=request.guidance_scale,
-                width=request.width,
-                height=request.height,
-            )
-        else:
-            # Text-to-image режим
-            print("📝 Text-to-image mode")
-            result = pipe(
-                prompt=request.prompt,
-                num_inference_steps=request.num_inference_steps,
-                guidance_scale=request.guidance_scale,
-                width=request.width,
-                height=request.height,
-            )
+                # Text-to-image режим
+                print("📝 Text-to-image mode")
+                return pipe(
+                    prompt=request.prompt,
+                    num_inference_steps=request.num_inference_steps,
+                    guidance_scale=request.guidance_scale,
+                    width=request.width,
+                    height=request.height,
+                )
+        
+        # Запускаем генерацию в отдельном потоке
+        future = executor.submit(generate)
+        result = future.result(timeout=300)  # 5 минут таймаут на генерацию
 
         # Получаем изображение
         image = result.images[0]
