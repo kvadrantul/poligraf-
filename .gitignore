@@ -20,3 +20,7 @@ npm-debug.log*
 .DS_Store
 Thumbs.db
 
+# Backend
+backend/.env
+backend/main
+backend/*.exe
