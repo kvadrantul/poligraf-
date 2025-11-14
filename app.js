@@ -870,10 +870,27 @@ ${truncatedHTML}
             hasResult: 'result' in data,
             hasCode: 'code' in data,
             hasMarkup: 'markup' in data,
-            keys: Object.keys(data)
+            keys: Object.keys(data),
+            resultType: typeof data.result,
+            codeType: typeof data.code,
+            resultLength: data.result?.length || 0,
+            codeLength: data.code?.length || 0
         });
         
-        let generatedCode = data.result || data.code || data.markup || data;
+        // Проверяем все возможные поля
+        let generatedCode = data.result || data.code || data.markup || '';
+        
+        // Если generatedCode - объект, пробуем извлечь строку
+        if (typeof generatedCode === 'object' && generatedCode !== null) {
+            console.warn('⚠️ Generated code is an object, trying to extract string');
+            generatedCode = JSON.stringify(generatedCode);
+        }
+        
+        // Если все еще пусто, пробуем весь data как строку
+        if (!generatedCode || generatedCode.length === 0) {
+            console.warn('⚠️ All code fields are empty, trying data as string');
+            generatedCode = typeof data === 'string' ? data : JSON.stringify(data);
+        }
         
         // Извлекаем код из markdown блоков (```tsx ... ``` или ```jsx ... ```)
         if (typeof generatedCode === 'string') {
@@ -900,14 +917,23 @@ ${truncatedHTML}
         console.log('  - Result type:', typeof generatedCode);
         console.log('  - Result length:', generatedCode?.length || 0);
         console.log('  - Result preview (first 300 chars):', generatedCode?.substring(0, 300) || 'N/A');
+        console.log('  - Has code blocks:', generatedCode?.includes('```') || false);
+        console.log('  - Has React keywords:', generatedCode?.includes('React') || generatedCode?.includes('export') || false);
         console.log('  - Polygraphy mode: always enabled');
         console.log('  - Provider: always v0.dev');
         
         // Проверяем, что код не пустой
-        if (!generatedCode || generatedCode.trim().length < 10) {
+        if (!generatedCode || (typeof generatedCode === 'string' && generatedCode.trim().length < 10)) {
             console.error('❌ Empty or invalid code received');
-            resultContent.innerHTML = '<div class="error-message">Получен пустой результат от API. Попробуйте еще раз.</div>';
+            console.error('❌ Full data object:', JSON.stringify(data, null, 2));
+            resultContent.innerHTML = '<div class="error-message">Получен пустой результат от API. Проверьте логи в консоли и на backend.</div>';
             return;
+        }
+        
+        // Убеждаемся, что generatedCode - строка
+        if (typeof generatedCode !== 'string') {
+            console.warn('⚠️ Generated code is not a string, converting...');
+            generatedCode = String(generatedCode);
         }
         
         // Отображаем результат (заменяет предыдущий контент)
