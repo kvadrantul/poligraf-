@@ -125,15 +125,15 @@ func HandleGenerate(c *gin.Context) {
 	if previewLen > 0 {
 		log.Printf("📦 Raw generated content preview (first %d chars): %s", previewLen, generatedContent[:previewLen])
 	}
-	
+
 	extractedCode := extractCodeFromResponse(generatedContent)
 	log.Printf("📦 Extracted code length: %d chars", len(extractedCode))
-	
+
 	if extractedCode == "" {
 		log.Println("⚠️ Extracted code is empty, using raw content")
 		extractedCode = generatedContent
 	}
-	
+
 	if len(extractedCode) < 10 {
 		log.Printf("⚠️ Extracted code is very short (%d chars), may be invalid", len(extractedCode))
 	}
@@ -166,12 +166,12 @@ func callV0(apiKey, userPrompt, image string) (string, error) {
 	if image != "" {
 		imageSize := len(image)
 		log.Printf("📷 Image size: %d chars (%.2f MB)", imageSize, float64(imageSize)/1024/1024)
-		
+
 		// Проверяем размер изображения (v0.dev может иметь лимиты)
 		if imageSize > 10*1024*1024 { // 10MB лимит
 			log.Printf("⚠️ Image size exceeds 10MB, may cause issues with v0.dev API")
 		}
-		
+
 		userContent = []map[string]interface{}{
 			{
 				"type": "text",
@@ -351,14 +351,14 @@ func callV0(apiKey, userPrompt, image string) (string, error) {
 	if previewLen > 0 {
 		log.Printf("📋 Content preview (first %d chars): %s", previewLen, content[:previewLen])
 	}
-	
+
 	// Проверяем, есть ли код в ответе
 	if strings.Contains(content, "```") {
 		log.Println("✅ Content contains code blocks")
 	} else {
 		log.Println("⚠️ Content does not contain code blocks - may be plain text")
 	}
-	
+
 	// Проверяем, не обрезана ли base64 строка в backgroundImage
 	if strings.Contains(content, "backgroundImage") {
 		// Ищем все вхождения backgroundImage
@@ -379,7 +379,7 @@ func callV0(apiKey, userPrompt, image string) (string, error) {
 			}
 		}
 	}
-	
+
 	return content, nil
 }
 
@@ -464,6 +464,7 @@ func extractCodeFromResponse(content string) string {
 	originalContent := content
 
 	// Ищем код в markdown code blocks (```language ... ```)
+	// Используем более надежный regex, который ищет закрывающие ``` даже если контент очень длинный
 	codeBlockRegex := regexp.MustCompile("(?s)```[\\w]*\\n?(.*?)```")
 	matches := codeBlockRegex.FindAllStringSubmatch(content, -1)
 
@@ -471,8 +472,31 @@ func extractCodeFromResponse(content string) string {
 	if len(matches) > 0 {
 		lastMatch := matches[len(matches)-1]
 		if len(lastMatch) > 1 {
-			log.Println("Found code block, using last one")
-			return strings.TrimSpace(lastMatch[1])
+			extracted := strings.TrimSpace(lastMatch[1])
+			log.Printf("Found code block, using last one (length: %d chars)", len(extracted))
+			return extracted
+		}
+	}
+
+	// Альтернативный метод: ищем первый ``` и последний ```, если regex не сработал
+	if strings.Contains(content, "```") {
+		firstIdx := strings.Index(content, "```")
+		if firstIdx >= 0 {
+			// Пропускаем открывающий ```
+			afterFirst := content[firstIdx+3:]
+			// Ищем следующий ``` после первого
+			nextIdx := strings.Index(afterFirst, "```")
+			if nextIdx > 0 {
+				// Извлекаем код между первым и последним ```
+				codePart := afterFirst[:nextIdx]
+				// Убираем язык (tsx, jsx, и т.д.) если есть
+				codePart = strings.TrimSpace(codePart)
+				if strings.HasPrefix(codePart, "tsx\n") || strings.HasPrefix(codePart, "jsx\n") || strings.HasPrefix(codePart, "js\n") {
+					codePart = codePart[strings.Index(codePart, "\n")+1:]
+				}
+				log.Printf("Found code block using alternative method (length: %d chars)", len(codePart))
+				return strings.TrimSpace(codePart)
+			}
 		}
 	}
 

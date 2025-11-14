@@ -332,6 +332,41 @@ function renderReactComponent(codeText, container) {
                 iframeCode = iframeCode.replace(/,\s*\}/g, '}');
                 iframeCode = iframeCode.replace(/,\s*\]/g, ']');
                 
+                // КРИТИЧЕСКИ ВАЖНО: Проверяем и закрываем незакрытые объекты перед вставкой const Component
+                // Проблема: если backgroundImage обрезан, объект style может остаться незакрытым
+                // и const Component окажется внутри него, что вызовет SyntaxError
+                
+                // Считаем открывающие и закрывающие фигурные скобки
+                let openBraces = (iframeCode.match(/\{/g) || []).length;
+                let closeBraces = (iframeCode.match(/\}/g) || []).length;
+                let braceDiff = openBraces - closeBraces;
+                
+                // Если есть незакрытые скобки, закрываем их
+                if (braceDiff > 0) {
+                    console.warn(`⚠️ Обнаружено ${braceDiff} незакрытых фигурных скобок, закрываем их`);
+                    // Закрываем незакрытые объекты
+                    for (let i = 0; i < braceDiff; i++) {
+                        iframeCode += '\n}';
+                    }
+                }
+                
+                // Также проверяем незакрытые круглые скобки
+                let openParens = (iframeCode.match(/\(/g) || []).length;
+                let closeParens = (iframeCode.match(/\)/g) || []).length;
+                let parenDiff = openParens - closeParens;
+                
+                if (parenDiff > 0) {
+                    console.warn(`⚠️ Обнаружено ${parenDiff} незакрытых круглых скобок, закрываем их`);
+                    for (let i = 0; i < parenDiff; i++) {
+                        iframeCode += ')';
+                    }
+                }
+                
+                // Убираем markdown разметку, если она осталась (```tsx, ``` и т.д.)
+                iframeCode = iframeCode.replace(/^```[\w]*\n?/gm, ''); // Убираем открывающие ```
+                iframeCode = iframeCode.replace(/\n?```$/gm, ''); // Убираем закрывающие ```
+                iframeCode = iframeCode.trim();
+                
                 let componentName = 'Component';
                 const exportMatch = iframeCode.match(/export\s+default\s+function\s+(\w+)/);
                 if (exportMatch) {
