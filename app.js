@@ -745,10 +745,123 @@ async function generateImage(prompt, referenceImage) {
     return data.imageUrl;
 }
 
+// Функция для создания прогресс-индикатора
+function createProgressIndicator(container) {
+    const progressContainer = document.createElement('div');
+    progressContainer.className = 'progress-indicator';
+    
+    // Этап 1: Генерация графики
+    const step1 = createProgressStep('Генерация графики', 'sparkle');
+    step1.classList.add('active');
+    
+    // Линия
+    const line1 = document.createElement('div');
+    line1.className = 'progress-line';
+    
+    // Этап 2: Графика готова
+    const step2 = createProgressStep('Графика готова', 'check');
+    
+    // Линия
+    const line2 = document.createElement('div');
+    line2.className = 'progress-line';
+    
+    // Карточка с изображением (скрыта по умолчанию)
+    const imageCard = document.createElement('div');
+    imageCard.className = 'progress-image-card';
+    imageCard.innerHTML = '<div style="padding: 12px; color: rgba(255,255,255,0.7); font-size: 12px;">Сгенерированное изображение</div><img src="" alt="Generated" style="display: none;">';
+    
+    // Линия
+    const line3 = document.createElement('div');
+    line3.className = 'progress-line';
+    
+    // Этап 3: Генерация полиграфии
+    const step3 = createProgressStep('Генерация полиграфии', 'document');
+    
+    // Линия
+    const line4 = document.createElement('div');
+    line4.className = 'progress-line';
+    
+    // Этап 4: Полиграфия готова
+    const step4 = createProgressStep('Полиграфия готова', 'check');
+    
+    // Собираем структуру
+    progressContainer.appendChild(step1);
+    progressContainer.appendChild(line1);
+    progressContainer.appendChild(step2);
+    progressContainer.appendChild(imageCard);
+    progressContainer.appendChild(line2);
+    progressContainer.appendChild(step3);
+    progressContainer.appendChild(line4);
+    progressContainer.appendChild(step4);
+    
+    container.appendChild(progressContainer);
+    
+    return {
+        container: progressContainer,
+        step1,
+        step2,
+        step3,
+        step4,
+        imageCard,
+        updateStep: (stepNumber, status) => {
+            const steps = [null, step1, step2, step3, step4];
+            const step = steps[stepNumber];
+            if (step) {
+                step.classList.remove('active', 'completed');
+                if (status === 'active') {
+                    step.classList.add('active');
+                } else if (status === 'completed') {
+                    step.classList.add('completed');
+                }
+            }
+        },
+        showImage: (imageUrl) => {
+            const img = imageCard.querySelector('img');
+            if (img) {
+                img.src = imageUrl;
+                img.style.display = 'block';
+                imageCard.classList.add('show');
+            }
+        },
+        remove: () => {
+            progressContainer.remove();
+        }
+    };
+}
+
+// Функция для создания шага прогресса
+function createProgressStep(text, iconType) {
+    const step = document.createElement('div');
+    step.className = 'progress-step';
+    
+    const icon = document.createElement('div');
+    icon.className = 'progress-step-icon';
+    
+    let iconSvg = '';
+    if (iconType === 'sparkle') {
+        iconSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>';
+    } else if (iconType === 'check') {
+        iconSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>';
+    } else if (iconType === 'document') {
+        iconSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>';
+    }
+    
+    icon.innerHTML = iconSvg;
+    
+    const textEl = document.createElement('div');
+    textEl.className = 'progress-step-text';
+    textEl.textContent = text;
+    
+    step.appendChild(icon);
+    step.appendChild(textEl);
+    
+    return step;
+}
+
 // Функция для отправки запроса к v0.dev Model API
 async function sendToV0(prompt) {
     let loadingOverlay = null;
-    let loadingSpinner = null;
+    let progressIndicator = null;
 
     try {
         // Создаем overlay с пульсацией для затемнения iframe (поверх result-area)
@@ -760,13 +873,8 @@ async function sendToV0(prompt) {
             loadingOverlay.className = 'loading-overlay';
             resultArea.appendChild(loadingOverlay);
             
-            // Создаем маленький белый спиннер в правом нижнем углу (внутри overlay)
-            loadingSpinner = document.createElement('div');
-            loadingSpinner.className = 'loading-spinner-small';
-            const spinnerSmall = document.createElement('div');
-            spinnerSmall.className = 'spinner-small';
-            loadingSpinner.appendChild(spinnerSmall);
-            loadingOverlay.appendChild(loadingSpinner);
+            // Создаем прогресс-индикатор
+            progressIndicator = createProgressIndicator(loadingOverlay);
         } else {
             console.error('resultArea not found for loading overlay');
         }
@@ -775,14 +883,39 @@ async function sendToV0(prompt) {
         let generatedImage = null;
         if (imageGenerationEnabled) {
             console.log('🎨 Step 1: Generating image...');
+            if (progressIndicator) {
+                progressIndicator.updateStep(1, 'active');
+            }
             generatedImage = await generateImage(prompt, uploadedImageBase64);
             console.log('✅ Image generated, proceeding to v0.dev');
+            
+            // Обновляем прогресс: графика готова, показываем изображение
+            if (progressIndicator) {
+                progressIndicator.updateStep(1, 'completed');
+                progressIndicator.updateStep(2, 'active');
+                setTimeout(() => {
+                    progressIndicator.updateStep(2, 'completed');
+                    if (generatedImage) {
+                        progressIndicator.showImage(generatedImage);
+                    }
+                    // Переходим к следующему этапу
+                    setTimeout(() => {
+                        if (progressIndicator) {
+                            progressIndicator.updateStep(3, 'active');
+                        }
+                    }, 500);
+                }, 500);
+            }
         } else {
             console.log('⏭️ Image generation disabled, skipping to v0.dev');
             // Если есть загруженное изображение, используем его
             if (uploadedImageBase64) {
                 generatedImage = uploadedImageBase64;
                 console.log('📷 Using uploaded image instead');
+            }
+            // Пропускаем этапы 1-2, сразу переходим к этапу 3
+            if (progressIndicator) {
+                progressIndicator.updateStep(3, 'active');
             }
         }
 
@@ -870,6 +1003,7 @@ ${truncatedHTML}
 
         // ЭТАП 2: Отправляем запрос в v0.dev с сгенерированным изображением
         console.log('🚀 Step 2: Sending request to v0.dev with generated image...');
+        
         const response = await fetch(API_GENERATE, {
             method: 'POST',
             headers: {
@@ -885,11 +1019,23 @@ ${truncatedHTML}
         
         clearTimeout(timeoutId);
 
-        if (loadingOverlay) {
-            loadingOverlay.remove();
-        }
-        if (loadingSpinner) {
-            loadingSpinner.remove();
+        // Обновляем прогресс: полиграфия готова
+        if (progressIndicator) {
+            progressIndicator.updateStep(3, 'completed');
+            progressIndicator.updateStep(4, 'active');
+            // Убираем прогресс через небольшую задержку для показа финального этапа
+            setTimeout(() => {
+                if (progressIndicator) {
+                    progressIndicator.updateStep(4, 'completed');
+                }
+                if (loadingOverlay) {
+                    loadingOverlay.remove();
+                }
+            }, 800);
+        } else {
+            if (loadingOverlay) {
+                loadingOverlay.remove();
+            }
         }
 
         if (!response.ok) {
@@ -1007,11 +1153,12 @@ ${truncatedHTML}
     } catch (error) {
         console.error('Ошибка при отправке запроса:', error);
         
+        // Убираем прогресс при ошибке
+        if (progressIndicator) {
+            progressIndicator.remove();
+        }
         if (loadingOverlay) {
             loadingOverlay.remove();
-        }
-        if (loadingSpinner) {
-            loadingSpinner.remove();
         }
 
         // Показываем ошибку поверх контента
