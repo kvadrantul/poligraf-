@@ -25,12 +25,8 @@ app = FastAPI(title="Stable Diffusion 3.5 Medium API")
 NUM_CPU_CORES = multiprocessing.cpu_count()
 print(f"🔧 Detected CPU cores: {NUM_CPU_CORES}")
 
-# Устанавливаем количество потоков для PyTorch (используем все ядра)
-torch.set_num_threads(NUM_CPU_CORES)
-torch.set_num_interop_threads(NUM_CPU_CORES)
-
 # Устанавливаем переменные окружения для OpenMP/MKL (если доступны)
-# КРИТИЧНО: Устанавливаем ДО импорта torch, чтобы они применились
+# КРИТИЧНО: Устанавливаем ДО любых операций с PyTorch
 os.environ["OMP_NUM_THREADS"] = str(NUM_CPU_CORES)
 os.environ["MKL_NUM_THREADS"] = str(NUM_CPU_CORES)
 os.environ["NUMEXPR_NUM_THREADS"] = str(NUM_CPU_CORES)
@@ -38,8 +34,10 @@ os.environ["OPENBLAS_NUM_THREADS"] = str(NUM_CPU_CORES)
 os.environ["VECLIB_MAXIMUM_THREADS"] = str(NUM_CPU_CORES)
 
 # Устанавливаем количество потоков для PyTorch
+# ВАЖНО: interop_threads устанавливается только один раз при первом вызове
+# Если уже был вызван - будет ошибка, поэтому устанавливаем только num_threads
 torch.set_num_threads(NUM_CPU_CORES)
-torch.set_num_interop_threads(NUM_CPU_CORES)
+# torch.set_num_interop_threads(NUM_CPU_CORES)  # Не устанавливаем здесь - может вызвать ошибку
 
 print(f"✅ PyTorch configured to use {NUM_CPU_CORES} threads")
 print(f"✅ PyTorch get_num_threads(): {torch.get_num_threads()}")
