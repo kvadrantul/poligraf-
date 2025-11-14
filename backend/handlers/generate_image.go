@@ -66,10 +66,11 @@ func generateImageWithStableDiffusion(apiUrl, prompt, referenceImage string) (st
 	apiEndpoint := fmt.Sprintf("%s/generate", apiUrl)
 
 	// Формируем запрос
+	// Для SDXL Turbo используем 4 шага (работает намного быстрее)
 	requestBody := map[string]interface{}{
 		"prompt":              prompt,
-		"num_inference_steps": 28,
-		"guidance_scale":      7.0,
+		"num_inference_steps": 4,  // Turbo работает с 1-4 шагами (вместо 20-50)
+		"guidance_scale":      1.0, // Turbo не использует guidance
 		"width":               1024,
 		"height":              1024,
 	}
