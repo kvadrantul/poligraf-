@@ -380,24 +380,34 @@ async def generate_image(request: GenerateRequest):
                     print(f"📐 Resized reference image to {width}x{height}")
 
                 # Генерируем с референсом
-                print("📷 Using reference image (image-to-image mode)")
+                print("=" * 60)
+                print("📷 IMAGE-TO-IMAGE MODE ACTIVATED")
+                print("=" * 60)
                 print(f"📷 Reference image size: {reference_img.size}")
+                print(f"📷 Reference image mode: {reference_img.mode}")
+                print(f"📷 Reference image format: {reference_img.format if hasattr(reference_img, 'format') else 'N/A'}")
                 
                 # Для разных моделей используем оптимальные параметры
                 steps = request.num_inference_steps
                 guidance = request.guidance_scale
-                strength = 0.75  # Сила влияния референса (0.0 = полностью игнорировать, 1.0 = максимально следовать)
+                # ВАЖНО: увеличиваем strength для максимального сохранения референса
+                # strength = 0.9-0.95 означает, что модель будет очень сильно следовать референсу
+                strength = 0.9  # Высокая сила для максимального сохранения элементов из референса
                 
                 if "v1-4" in MODEL_ID.lower() or "stable-diffusion-v1-4" in MODEL_ID.lower():
                     steps = min(steps, 10)
                     guidance = 7.5
-                    strength = 0.75  # Увеличиваем силу для лучшего сохранения элементов из референса
-                    print(f"⚡⚡⚡⚡ SD 1.4 mode (SIMPLEST!): {steps} steps, guidance={guidance}, strength={strength}")
+                    strength = 0.9  # Очень высокая сила для SD 1.4
+                    print(f"⚡⚡⚡⚡ SD 1.4 mode (HIGH STRENGTH!): {steps} steps, guidance={guidance}, strength={strength}")
                 elif "lcm" in MODEL_ID.lower():
                     steps = max(steps, 4)  # LCM минимум 4 шага для нормального качества
                     guidance = 2.0
-                    strength = 0.85  # Увеличиваем силу для максимального сохранения элементов из референса
-                    print(f"⚡⚡⚡ LCM mode (OPTIMIZED): {steps} steps, guidance={guidance}, strength={strength}")
+                    strength = 0.9  # Очень высокая сила для LCM
+                    print(f"⚡⚡⚡ LCM mode (HIGH STRENGTH!): {steps} steps, guidance={guidance}, strength={strength}")
+                
+                print(f"📝 Prompt: {request.prompt[:100]}...")
+                print(f"🔧 Strength={strength} means model will follow reference image VERY closely")
+                print("=" * 60)
                 
                 # Негативный промпт для image-to-image (БЕЗ "black image"!)
                 negative_prompt = request.negative_prompt or "blurry, low quality, distorted, dark, noise, text, watermark, signature"
@@ -405,10 +415,16 @@ async def generate_image(request: GenerateRequest):
                 # Используем img2img пайплайн если он доступен, иначе обычный pipe
                 img2img_pipe_to_use = img2img_pipe_global if img2img_pipe_global is not None else pipe
                 
+                if img2img_pipe_to_use is None:
+                    print("❌ ERROR: img2img pipeline is not available! Falling back to text-to-image (WRONG!)")
+                    print("❌ This means reference image will be IGNORED!")
+                else:
+                    print("✅ Using img2img pipeline for image-to-image generation")
+                
                 pipe_kwargs = {
                     "prompt": request.prompt,
                     "image": reference_img,  # ВАЖНО: передаем референсное изображение
-                    "strength": strength,  # Сила влияния референса
+                    "strength": strength,  # Сила влияния референса (0.9 = очень сильное влияние)
                     "num_inference_steps": steps,
                     "guidance_scale": guidance,
                 }
@@ -419,11 +435,25 @@ async def generate_image(request: GenerateRequest):
                     sig = inspect.signature(img2img_pipe_to_use)
                     if "negative_prompt" in sig.parameters:
                         pipe_kwargs["negative_prompt"] = negative_prompt
-                except:
+                        print("✅ Negative prompt added")
+                    else:
+                        print("⚠️ Model does not support negative_prompt")
+                except Exception as e:
+                    print(f"⚠️ Could not check negative_prompt support: {e}")
                     pipe_kwargs["negative_prompt"] = negative_prompt
                 
-                print(f"🎨 Calling img2img pipeline with: prompt='{request.prompt[:50]}...', strength={strength}, steps={steps}")
-                return img2img_pipe_to_use(**pipe_kwargs)
+                print(f"🎨 Calling img2img pipeline:")
+                print(f"   - Prompt: '{request.prompt[:50]}...'")
+                print(f"   - Strength: {strength} (high = follows reference closely)")
+                print(f"   - Steps: {steps}")
+                print(f"   - Guidance: {guidance}")
+                print(f"   - Reference image: {reference_img.size}, mode={reference_img.mode}")
+                sys.stdout.flush()
+                
+                result = img2img_pipe_to_use(**pipe_kwargs)
+                print("✅ Image-to-image generation completed")
+                sys.stdout.flush()
+                return result
             else:
                 # Text-to-image режим
                 print("📝 Text-to-image mode")

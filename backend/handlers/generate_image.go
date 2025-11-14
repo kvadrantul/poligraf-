@@ -44,6 +44,10 @@ func HandleGenerateImage(c *gin.Context) {
 
 	log.Printf("🎨 Generating image with prompt: %s", req.Prompt[:min(100, len(req.Prompt))])
 	log.Printf("📷 Has reference image: %v", req.ReferenceImage != "")
+	if req.ReferenceImage != "" {
+		log.Printf("📷 Reference image length: %d bytes", len(req.ReferenceImage))
+		log.Printf("📷 Reference image preview: %s", req.ReferenceImage[:min(100, len(req.ReferenceImage))])
+	}
 	log.Printf("🔗 Stable Diffusion API URL: %s", sdApiUrl)
 
 	// Генерируем изображение через локальный Stable Diffusion API
@@ -85,6 +89,10 @@ func generateImageWithStableDiffusion(apiUrl, prompt, referenceImage, negativePr
 	if referenceImage != "" {
 		requestBody["reference_image"] = referenceImage
 		log.Println("📷 Reference image provided, using image-to-image mode")
+		log.Printf("📷 Reference image length in request: %d bytes", len(referenceImage))
+		log.Printf("📷 Reference image preview: %s", referenceImage[:min(100, len(referenceImage))])
+	} else {
+		log.Println("⚠️ WARNING: No reference image provided - will use text-to-image mode")
 	}
 
 	jsonData, err := json.Marshal(requestBody)

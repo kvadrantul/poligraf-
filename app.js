@@ -825,15 +825,18 @@ async function generateImage(prompt, referenceImage) {
     }
     
     if (referenceImage) {
-        // Если есть референс: используем image-to-image с улучшенным промптом
-        // Промпт должен четко указывать на сохранение и извлечение конкретных элементов из референса
-        // ВАЖНО: сохраняем именно те элементы, которые есть на референсе (розы, цветы, узоры и т.д.)
-        imagePrompt = `preserve and extract the exact graphics elements from the reference image, keep the same style and theme as in the reference, ${englishPrompt}, clean white background, professional quality, high resolution, remove background, maintain original design elements, extract graphics exactly as shown in reference`;
+        // Если есть референс: используем image-to-image с минимальным промптом
+        // ВАЖНО: промпт должен быть минимальным, чтобы модель больше ориентировалась на референс
+        // Референс - это главное, промпт только уточняет детали
+        // Убираем лишние инструкции, которые могут перекрыть референс
+        imagePrompt = `extract graphics from reference image, ${englishPrompt}, white background`;
         console.log('🎨 Generating image from reference (image-to-image mode)');
         console.log('  - Original prompt:', prompt);
         console.log('  - Translated prompt:', imagePrompt);
         console.log('  - Reference image provided: YES');
-        console.log('  - Instruction: Preserve exact elements from reference');
+        console.log('  - Reference image length:', referenceImage.length);
+        console.log('  - Reference image preview:', referenceImage.substring(0, 100));
+        console.log('  - Instruction: Minimal prompt to preserve reference elements');
     } else {
         // Если нет референса: создаем конкретный промпт для графики
         imagePrompt = `${englishPrompt}, graphic design, professional, high quality, clean, modern, minimalist`;
@@ -1172,6 +1175,13 @@ async function sendToV0(prompt) {
             if (progressIndicator) {
                 progressIndicator.updateStep(1, 'active');
             }
+            // ВАЖНО: передаем uploadedImageBase64 как референс для генерации
+            console.log('📷 Calling generateImage with reference:', {
+                hasReference: !!uploadedImageBase64,
+                referenceLength: uploadedImageBase64?.length || 0,
+                referencePreview: uploadedImageBase64?.substring(0, 100) || 'N/A',
+                prompt: prompt
+            });
             generatedImage = await generateImage(prompt, uploadedImageBase64);
             console.log('✅ Image generated, proceeding to v0.dev');
             console.log('📷 Generated image type check:', {
