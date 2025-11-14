@@ -8,6 +8,7 @@ import io
 import os
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
+import sys
 
 import torch
 from diffusers import StableDiffusionPipeline
@@ -15,6 +16,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import multiprocessing
+import psutil
 
 app = FastAPI(title="Stable Diffusion 3.5 Medium API")
 
@@ -188,6 +190,15 @@ async def generate_image(request: GenerateRequest):
 
         # Генерируем изображение в отдельном потоке, чтобы не блокировать event loop
         def generate():
+            process = psutil.Process(os.getpid())
+            # Принудительно сбрасываем буфер вывода для немедленного отображения логов
+            sys.stdout.flush()
+            sys.stderr.flush()
+            
+            print("=" * 60)
+            print("🚀 GENERATION STARTED")
+            print("=" * 60)
+            
             # Округляем размеры до кратных 8 (требование Stable Diffusion)
             width = ((request.width + 7) // 8) * 8
             height = ((request.height + 7) // 8) * 8
@@ -199,6 +210,14 @@ async def generate_image(request: GenerateRequest):
             
             if width != request.width or height != request.height:
                 print(f"⚠️ Adjusted image size from {request.width}x{request.height} to {width}x{height} (must be multiple of 8)")
+            
+            # Логируем начальное состояние
+            cpu_percent = process.cpu_percent(interval=0.1)
+            num_threads = process.num_threads()
+            memory_mb = process.memory_info().rss / 1024 / 1024
+            print(f"📊 INITIAL STATE: CPU={cpu_percent:.1f}%, Threads={num_threads}, Memory={memory_mb:.1f}MB")
+            print(f"🔧 PyTorch threads: {torch.get_num_threads()}")
+            print(f"🔧 PyTorch interop threads: {torch.get_num_interop_threads()}")
             
             # Подготовка входных данных
             if request.reference_image:
@@ -265,24 +284,54 @@ async def generate_image(request: GenerateRequest):
                     guidance = 1.0  # Lightning использует низкий guidance
                     print(f"⚡ Lightning mode: {steps} steps, guidance={guidance}")
                 
-                return pipe(
+                print(f"📝 Calling pipe() with: prompt='{request.prompt[:50]}...', steps={steps}, guidance={guidance}, size={width}x{height}")
+                print("⏳ Starting inference (this should use CPU cores)...")
+                
+                # Проверяем CPU перед вызовом
+                cpu_before = process.cpu_percent(interval=0.1)
+                threads_before = process.num_threads()
+                print(f"📊 BEFORE pipe(): CPU={cpu_before:.1f}%, Threads={threads_before}")
+                
+                # Вызываем генерацию
+                result = pipe(
                     prompt=request.prompt,
                     num_inference_steps=steps,
                     guidance_scale=guidance,
                     width=width,
                     height=height,
                 )
+                
+                # Проверяем CPU после вызова
+                cpu_after = process.cpu_percent(interval=0.1)
+                threads_after = process.num_threads()
+                print(f"📊 AFTER pipe(): CPU={cpu_after:.1f}%, Threads={threads_after}")
+                print("✅ Inference completed")
+                
+                return result
         
         # Запускаем генерацию в отдельном потоке через asyncio (не блокирует event loop)
-        result = await asyncio.wait_for(
-            asyncio.to_thread(generate),
-            timeout=900.0  # 15 минут таймаут на генерацию (CPU может быть медленным)
-        )
+        # Таймаут 30 секунд для быстрой диагностики
+        print("⏱️  Starting generation with 30 second timeout...")
+        try:
+            result = await asyncio.wait_for(
+                asyncio.to_thread(generate),
+                timeout=30.0  # 30 секунд таймаут для диагностики
+            )
+            print("✅ Generation completed within timeout")
+        except asyncio.TimeoutError:
+            print("❌ TIMEOUT: Generation exceeded 30 seconds!")
+            raise HTTPException(
+                status_code=408,
+                detail="Image generation timeout (30 seconds). Model may be too slow or not using CPU cores."
+            )
 
         # Получаем изображение
+        print("📷 Extracting image from result...")
         image = result.images[0]
+        print(f"✅ Image extracted: size={image.size}, mode={image.mode}")
 
         # Конвертируем в base64 с оптимизацией размера
+        print("🔄 Converting to JPEG and encoding to base64...")
         # Используем JPEG с качеством 85% для уменьшения размера (вместо PNG)
         buffered = io.BytesIO()
         # Конвертируем RGBA в RGB для JPEG (JPEG не поддерживает прозрачность)
