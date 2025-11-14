@@ -562,17 +562,35 @@ function displayResult(result) {
                         const adjustHeight = () => {
                             try {
                                 const iframeBody = iframeDoc.body;
+                                const iframeRoot = iframeDoc.getElementById('root');
+                                const iframeHtml = iframeDoc.documentElement;
+                                
                                 if (iframeBody) {
-                                    const height = Math.max(
+                                    // Получаем максимальную высоту контента
+                                    const contentHeight = Math.max(
                                         iframeBody.scrollHeight,
                                         iframeBody.offsetHeight,
-                                        iframeDoc.documentElement.scrollHeight,
-                                        iframeDoc.documentElement.offsetHeight
+                                        iframeRoot ? iframeRoot.scrollHeight : 0,
+                                        iframeRoot ? iframeRoot.offsetHeight : 0,
+                                        iframeHtml.scrollHeight,
+                                        iframeHtml.offsetHeight
                                     );
-                                    iframe.style.height = height + 'px';
+                                    
+                                    // Ограничиваем высоту iframe максимальной высотой контейнера
+                                    const container = iframe.closest('.react-render-container');
+                                    const maxHeight = container ? container.clientHeight : window.innerHeight;
+                                    
+                                    // Устанавливаем высоту, но не больше доступного пространства
+                                    const finalHeight = Math.min(contentHeight, maxHeight);
+                                    iframe.style.height = finalHeight + 'px';
+                                    
+                                    // Убеждаемся, что iframe не выходит за границы
+                                    iframe.style.maxHeight = maxHeight + 'px';
+                                    iframe.style.overflow = 'hidden';
                                 }
                             } catch (e) {
                                 // Игнорируем ошибки доступа к iframe
+                                console.warn('Ошибка при настройке высоты iframe:', e);
                             }
                         };
                         
@@ -794,10 +812,12 @@ async function generateImage(prompt, referenceImage) {
     
     if (referenceImage) {
         // Если есть референс: используем image-to-image с улучшенным промптом
-        imagePrompt = `extract graphics from reference image, ${englishPrompt}, clean background, professional, high quality`;
-        console.log('🎨 Generating image from reference');
+        // Промпт должен четко указывать на извлечение графики из референса
+        imagePrompt = `extract and isolate graphics elements from reference image, ${englishPrompt}, clean white background, professional quality, high resolution, remove background, extract only graphics`;
+        console.log('🎨 Generating image from reference (image-to-image mode)');
         console.log('  - Original prompt:', prompt);
         console.log('  - Translated prompt:', imagePrompt);
+        console.log('  - Reference image provided: YES');
     } else {
         // Если нет референса: создаем конкретный промпт для графики
         imagePrompt = `${englishPrompt}, graphic design, professional, high quality, clean, modern, minimalist`;

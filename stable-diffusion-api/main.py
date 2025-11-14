@@ -53,6 +53,7 @@ app.add_middleware(
 
 # Глобальная переменная для пайплайна
 pipe = None
+img2img_pipe_global = None  # Пайплайн для image-to-image режима
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"🔧 Using device: {device}")
 
@@ -152,8 +153,9 @@ def load_model():
                 **kwargs
             )
         else:
-            # Стандартный Stable Diffusion (1.5, 2.1)
-            from diffusers import StableDiffusionPipeline
+            # Стандартный Stable Diffusion (1.5, 2.1, 1.4)
+            # Загружаем оба пайплайна: text-to-image и image-to-image
+            from diffusers import StableDiffusionPipeline, StableDiffusionImg2ImgPipeline
             print("📦 Using standard Stable Diffusion pipeline")
             print(f"📥 Loading model: {MODEL_ID}")
             sys.stdout.flush()
@@ -164,19 +166,37 @@ def load_model():
             sys.stdout.flush()
             
             try:
-                # Загружаем модель (diffusers покажет прогресс автоматически через tqdm)
+                # Загружаем text-to-image пайплайн (основной)
                 pipe = StableDiffusionPipeline.from_pretrained(
                     MODEL_ID,
                     torch_dtype=torch.float16 if device == "cuda" else torch.float32,
                 )
-                print("✅ Model downloaded/loaded successfully")
+                print("✅ Text-to-image pipeline loaded successfully")
                 sys.stdout.flush()
+                
+                # Загружаем image-to-image пайплайн (для работы с референсами)
+                # Используем те же веса модели, но специальный пайплайн для img2img
+                img2img_pipe = StableDiffusionImg2ImgPipeline.from_pretrained(
+                    MODEL_ID,
+                    torch_dtype=torch.float16 if device == "cuda" else torch.float32,
+                )
+                print("✅ Image-to-image pipeline loaded successfully")
+                sys.stdout.flush()
+                
+                # Сохраняем оба пайплайна в глобальной переменной
+                # Используем словарь для хранения обоих
+                global pipe, img2img_pipe_global
+                img2img_pipe_global = img2img_pipe
             except Exception as e:
                 error_msg = str(e)
                 print(f"❌ Error loading model: {error_msg}")
                 sys.stdout.flush()
                 raise
         pipe = pipe.to(device)
+        
+        # Перемещаем img2img пайплайн на устройство, если он загружен
+        if img2img_pipe_global is not None:
+            img2img_pipe_global = img2img_pipe_global.to(device)
 
         # Оптимизация для ускорения (для CPU и CUDA)
         # ВАЖНО: attention_slicing может замедлять на CPU, пробуем без него для максимальной скорости
@@ -184,11 +204,16 @@ def load_model():
             # Для CPU не используем attention_slicing - может замедлять
             # pipe.enable_attention_slicing(1)  # Отключено для CPU
             pipe.enable_vae_slicing()  # VAE slicing экономит память
+            if img2img_pipe_global is not None:
+                img2img_pipe_global.enable_vae_slicing()
             print("🔧 CPU mode: VAE slicing enabled, attention slicing disabled for speed")
         else:
             # Для CUDA используем оба
             pipe.enable_attention_slicing(1)
             pipe.enable_vae_slicing()
+            if img2img_pipe_global is not None:
+                img2img_pipe_global.enable_attention_slicing(1)
+                img2img_pipe_global.enable_vae_slicing()
         
         # Для CPU используем float32 (не float16) - это уже установлено выше
         # Дополнительные оптимизации для CPU
@@ -220,7 +245,7 @@ def load_model():
             
             # Пробуем загрузить SD 1.4 - самая простая модель
             try:
-                from diffusers import StableDiffusionPipeline
+                from diffusers import StableDiffusionPipeline, StableDiffusionImg2ImgPipeline
                 print("📦 Loading fallback model: CompVis/stable-diffusion-v1-4")
                 sys.stdout.flush()
                 
@@ -228,15 +253,24 @@ def load_model():
                     "CompVis/stable-diffusion-v1-4",
                     torch_dtype=torch.float32,
                 )
+                # Загружаем img2img пайплайн для fallback модели
+                global img2img_pipe_global
+                img2img_pipe_global = StableDiffusionImg2ImgPipeline.from_pretrained(
+                    "CompVis/stable-diffusion-v1-4",
+                    torch_dtype=torch.float32,
+                )
                 pipe = pipe.to(device)
+                img2img_pipe_global = img2img_pipe_global.to(device)
                 pipe.enable_attention_slicing(1)
                 pipe.enable_vae_slicing()
+                img2img_pipe_global.enable_attention_slicing(1)
+                img2img_pipe_global.enable_vae_slicing()
                 
                 if device == "cpu":
                     current_threads = torch.get_num_threads()
                     print(f"🔧 CPU optimizations: attention_slicing, vae_slicing, {current_threads} threads")
                 
-                print("✅ Fallback model loaded successfully")
+                print("✅ Fallback model loaded successfully (with img2img pipeline)")
                 return pipe
             except Exception as e2:
                 print(f"❌ Error loading fallback model: {e2}")
@@ -339,43 +373,57 @@ async def generate_image(request: GenerateRequest):
                 image_bytes = base64.b64decode(base64_data)
                 from PIL import Image
                 reference_img = Image.open(io.BytesIO(image_bytes))
+                
+                # Изменяем размер референса под нужные размеры (если нужно)
+                if reference_img.size != (width, height):
+                    reference_img = reference_img.resize((width, height), Image.Resampling.LANCZOS)
+                    print(f"📐 Resized reference image to {width}x{height}")
 
                 # Генерируем с референсом
                 print("📷 Using reference image (image-to-image mode)")
+                print(f"📷 Reference image size: {reference_img.size}")
                 
                 # Для разных моделей используем оптимальные параметры
                 steps = request.num_inference_steps
                 guidance = request.guidance_scale
+                strength = 0.75  # Сила влияния референса (0.0 = полностью игнорировать, 1.0 = максимально следовать)
+                
                 if "v1-4" in MODEL_ID.lower() or "stable-diffusion-v1-4" in MODEL_ID.lower():
                     steps = min(steps, 10)
                     guidance = 7.5
-                    print(f"⚡⚡⚡⚡ SD 1.4 mode (SIMPLEST!): {steps} steps, guidance={guidance}")
+                    strength = 0.7  # Для SD 1.4 используем среднюю силу
+                    print(f"⚡⚡⚡⚡ SD 1.4 mode (SIMPLEST!): {steps} steps, guidance={guidance}, strength={strength}")
                 elif "lcm" in MODEL_ID.lower():
-                    steps = min(steps, 2)
-                    guidance = 1.0
-                    print(f"⚡⚡⚡ LCM mode (FASTEST!): {steps} steps, guidance={guidance}")
+                    steps = max(steps, 4)  # LCM минимум 4 шага для нормального качества
+                    guidance = 2.0
+                    strength = 0.8  # Для LCM используем более высокую силу для лучшего извлечения графики
+                    print(f"⚡⚡⚡ LCM mode (OPTIMIZED): {steps} steps, guidance={guidance}, strength={strength}")
                 
                 # Негативный промпт для image-to-image (БЕЗ "black image"!)
                 negative_prompt = request.negative_prompt or "blurry, low quality, distorted, dark, noise, text, watermark, signature"
                 
+                # Используем img2img пайплайн если он доступен, иначе обычный pipe
+                img2img_pipe_to_use = img2img_pipe_global if img2img_pipe_global is not None else pipe
+                
                 pipe_kwargs = {
                     "prompt": request.prompt,
+                    "image": reference_img,  # ВАЖНО: передаем референсное изображение
+                    "strength": strength,  # Сила влияния референса
                     "num_inference_steps": steps,
                     "guidance_scale": guidance,
-                    "width": width,
-                    "height": height,
                 }
                 
                 # Добавляем negative_prompt если модель поддерживает
                 try:
                     import inspect
-                    sig = inspect.signature(pipe)
+                    sig = inspect.signature(img2img_pipe_to_use)
                     if "negative_prompt" in sig.parameters:
                         pipe_kwargs["negative_prompt"] = negative_prompt
                 except:
                     pipe_kwargs["negative_prompt"] = negative_prompt
                 
-                return pipe(**pipe_kwargs)
+                print(f"🎨 Calling img2img pipeline with: prompt='{request.prompt[:50]}...', strength={strength}, steps={steps}")
+                return img2img_pipe_to_use(**pipe_kwargs)
             else:
                 # Text-to-image режим
                 print("📝 Text-to-image mode")
