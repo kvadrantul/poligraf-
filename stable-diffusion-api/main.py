@@ -173,8 +173,16 @@ def load_model():
         pipe = pipe.to(device)
 
         # Оптимизация для ускорения (для CPU и CUDA)
-        pipe.enable_attention_slicing(1)  # Включаем для CPU тоже - экономит память и может ускорить
-        pipe.enable_vae_slicing()  # Включаем для CPU - экономит память
+        # ВАЖНО: attention_slicing может замедлять на CPU, пробуем без него для максимальной скорости
+        if device == "cpu":
+            # Для CPU не используем attention_slicing - может замедлять
+            # pipe.enable_attention_slicing(1)  # Отключено для CPU
+            pipe.enable_vae_slicing()  # VAE slicing экономит память
+            print("🔧 CPU mode: VAE slicing enabled, attention slicing disabled for speed")
+        else:
+            # Для CUDA используем оба
+            pipe.enable_attention_slicing(1)
+            pipe.enable_vae_slicing()
         
         # Для CPU используем float32 (не float16) - это уже установлено выше
         # Дополнительные оптимизации для CPU
