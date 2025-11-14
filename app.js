@@ -275,25 +275,85 @@ function renderReactComponent(codeText, container) {
                     return `bg-[url(${quote}${fixedUrl}${quote})]`;
                 });
                 
-                // ИСПРАВЛЕНИЕ: Экранируем проблемные кавычки в backgroundImage внутри style объектов
+                // ИСПРАВЛЕНИЕ: Исправляем незакрытые template literals в backgroundImage
                 // Проблема: style={{backgroundImage: `url('data:image/jpeg;base64,...')`}} содержит очень длинную base64 строку
-                // которая может обрываться или содержать неэкранированные кавычки, ломая парсинг Babel
-                // Решение: находим все backgroundImage с url() и заменяем одинарные кавычки на двойные внутри template literal
-                // или экранируем их, если они используются внутри одинарных кавычек
-                iframeCode = iframeCode.replace(/backgroundImage:\s*`url\((['"])([^`]*?)\1\)`/g, (match, quote, url) => {
-                    // Если внутри template literal используются одинарные кавычки, заменяем их на двойные
-                    // или экранируем, чтобы избежать конфликта с template literal
-                    let fixedUrl = url;
-                    // Если quote одинарная, заменяем все одинарные кавычки внутри URL на двойные
-                    if (quote === "'") {
-                        fixedUrl = fixedUrl.replace(/'/g, '"');
+                // которая может обрываться, оставляя незакрытый template literal, что ломает парсинг Babel
+                // Решение: находим все незакрытые template literals в backgroundImage и закрываем их правильно
+                
+                // Сначала находим все случаи, где backgroundImage начинается с template literal, но может быть незакрыт
+                // Ищем паттерн: backgroundImage: `url('data:image... (без закрывающих символов)
+                iframeCode = iframeCode.replace(/backgroundImage:\s*`url\((['"])(data:image[^`]*?)(?:\1\)`|$)/g, (match, quote, url) => {
+                    // Если match заканчивается на $, значит template literal не закрыт
+                    if (!match.endsWith(')`')) {
+                        // Закрываем template literal правильно
+                        // Заменяем одинарные кавычки внутри URL на двойные, чтобы избежать конфликта
+                        let fixedUrl = url.replace(/'/g, '"');
                         return `backgroundImage: \`url("${fixedUrl}")\``;
-                    } else {
-                        // Если quote двойная, заменяем все двойные кавычки внутри URL на одинарные
-                        fixedUrl = fixedUrl.replace(/"/g, "'");
-                        return `backgroundImage: \`url('${fixedUrl}')\``;
                     }
+                    return match;
                 });
+                
+                // Также обрабатываем случаи, где template literal может быть обрезан в середине
+                // Ищем незакрытые template literals (начинаются с ` но не заканчиваются на `)
+                // Это более агрессивный подход - находим все backgroundImage с незакрытыми template literals
+                const backgroundImagePattern = /backgroundImage:\s*`url\((['"])(data:image[^`]*)/g;
+                let lastIndex = 0;
+                let fixedCode = '';
+                let match;
+                
+                while ((match = backgroundImagePattern.exec(iframeCode)) !== null) {
+                    // Добавляем текст до совпадения
+                    fixedCode += iframeCode.substring(lastIndex, match.index);
+                    
+                    const quote = match[1];
+                    const urlStart = match[2];
+                    const matchEnd = match.index + match[0].length;
+                    
+                    // Ищем, где заканчивается этот template literal (ищем следующий ` или конец строки)
+                    let urlEnd = matchEnd;
+                    let foundClose = false;
+                    
+                    // Ищем закрывающие символы: )` или просто ` на той же строке
+                    const remainingCode = iframeCode.substring(matchEnd);
+                    const closeMatch = remainingCode.match(/\)`|`/);
+                    
+                    if (closeMatch) {
+                        urlEnd = matchEnd + closeMatch.index;
+                        foundClose = true;
+                    } else {
+                        // Если не нашли закрывающие символы, ищем конец строки или следующее свойство
+                        const nextPropMatch = remainingCode.match(/,\s*\w+:|}\s*\)|}\s*}/);
+                        if (nextPropMatch) {
+                            urlEnd = matchEnd + nextPropMatch.index;
+                        } else {
+                            // Если ничего не нашли, берем до конца
+                            urlEnd = iframeCode.length;
+                        }
+                    }
+                    
+                    // Извлекаем полный URL (может быть обрезан)
+                    const fullUrl = iframeCode.substring(matchEnd, urlEnd);
+                    // Убираем возможные закрывающие символы из URL
+                    let cleanUrl = fullUrl.replace(/\)`|`/g, '').trim();
+                    
+                    // Заменяем одинарные кавычки на двойные, чтобы избежать конфликта с template literal
+                    cleanUrl = cleanUrl.replace(/'/g, '"');
+                    
+                    // Формируем правильный backgroundImage
+                    fixedCode += `backgroundImage: \`url("${cleanUrl}")\``;
+                    
+                    lastIndex = urlEnd;
+                }
+                
+                // Добавляем оставшийся код
+                if (lastIndex < iframeCode.length) {
+                    fixedCode += iframeCode.substring(lastIndex);
+                }
+                
+                // Если были замены, используем исправленный код
+                if (fixedCode) {
+                    iframeCode = fixedCode;
+                }
                 
                 let componentName = 'Component';
                 const exportMatch = iframeCode.match(/export\s+default\s+function\s+(\w+)/);
