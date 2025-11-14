@@ -14,8 +14,27 @@ from diffusers import StableDiffusionPipeline
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+import multiprocessing
 
 app = FastAPI(title="Stable Diffusion 3.5 Medium API")
+
+# ⚡ КРИТИЧНО: Настраиваем PyTorch для использования ВСЕХ ядер CPU
+# Mac Mini M4 имеет 10 ядер (4 performance + 6 efficiency)
+NUM_CPU_CORES = multiprocessing.cpu_count()
+print(f"🔧 Detected CPU cores: {NUM_CPU_CORES}")
+
+# Устанавливаем количество потоков для PyTorch (используем все ядра)
+torch.set_num_threads(NUM_CPU_CORES)
+torch.set_num_interop_threads(NUM_CPU_CORES)
+
+# Устанавливаем переменные окружения для OpenMP/MKL (если доступны)
+os.environ.setdefault("OMP_NUM_THREADS", str(NUM_CPU_CORES))
+os.environ.setdefault("MKL_NUM_THREADS", str(NUM_CPU_CORES))
+os.environ.setdefault("NUMEXPR_NUM_THREADS", str(NUM_CPU_CORES))
+
+print(f"✅ PyTorch configured to use {NUM_CPU_CORES} threads")
+print(f"✅ PyTorch get_num_threads(): {torch.get_num_threads()}")
+print(f"✅ PyTorch get_num_interop_threads(): {torch.get_num_interop_threads()}")
 
 # Настройка CORS
 app.add_middleware(
@@ -42,7 +61,7 @@ executor = ThreadPoolExecutor(max_workers=1)
 # - "ByteDance/SDXL-Lightning" - очень быстрая SDXL (1-4 шага), ~10GB, коммерческое использование разрешено
 # - "stabilityai/sdxl-turbo" - быстрая SDXL (1-4 шага), ~10GB, коммерческое использование разрешено
 # - "stabilityai/stable-diffusion-3-medium-diffusers" - требует HF token, НЕКОММЕРЧЕСКОЕ использование
-MODEL_ID = os.getenv("SD_MODEL_ID", "CompVis/stable-diffusion-v1-4")  # По умолчанию: САМАЯ ПРОСТАЯ базовая модель SD 1.4
+MODEL_ID = os.getenv("SD_MODEL_ID", "SimianLuo/LCM_Dreamshaper_v7")  # По умолчанию: САМАЯ БЫСТРАЯ модель (1-2 шага!)
 HF_TOKEN = os.getenv("HUGGINGFACE_TOKEN", "")  # Для gated моделей (не используется для Lightning)
 
 
@@ -122,9 +141,10 @@ def load_model():
         # Для CPU используем float32 (не float16) - это уже установлено выше
         # Дополнительные оптимизации для CPU
         if device == "cpu":
-            # Используем однопоточность для стабильности на CPU
-            torch.set_num_threads(1)
-            print("🔧 CPU optimizations: attention_slicing, vae_slicing, single thread")
+            # Убеждаемся, что используем все ядра (уже настроено выше при импорте)
+            current_threads = torch.get_num_threads()
+            print(f"🔧 CPU optimizations: attention_slicing, vae_slicing, {current_threads} threads")
+            print(f"🔧 PyTorch will use {current_threads} CPU cores for inference")
 
         print("✅ Model loaded successfully")
         return pipe
