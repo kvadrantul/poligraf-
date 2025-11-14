@@ -45,6 +45,7 @@
     <h1>Отладка сгенерированного изображения</h1>
     <button onclick="loadImage()">Загрузить изображение из localStorage</button>
     <button onclick="checkBlobUrl()">Проверить Blob URL (из консоли)</button>
+    <button onclick="downloadImage()">Скачать изображение</button>
     <button onclick="clearImage()">Очистить</button>
     <div id="info" class="info"></div>
     <div id="imageContainer" class="image-container"></div>
@@ -174,6 +175,61 @@
                 document.getElementById('imageContainer').appendChild(img);
             } else {
                 alert('window.poligrafDebugImageBlobUrl не найден. Откройте консоль в основном приложении и проверьте, создан ли blob URL.');
+            }
+        }
+        
+        function downloadImage() {
+            const imageUrl = localStorage.getItem('poligraf-debug-generated-image') || 
+                           sessionStorage.getItem('poligraf-debug-generated-image');
+            
+            if (!imageUrl || !imageUrl.startsWith('data:image')) {
+                alert('❌ Изображение не найдено или невалидное');
+                return;
+            }
+            
+            try {
+                // Извлекаем base64 данные
+                const base64Data = imageUrl.split(',')[1];
+                if (!base64Data) {
+                    alert('❌ Не удалось извлечь base64 данные');
+                    return;
+                }
+                
+                // Определяем формат изображения
+                const formatMatch = imageUrl.match(/data:image\/([^;]+)/);
+                const format = formatMatch ? formatMatch[1] : 'jpeg';
+                const mimeType = `image/${format}`;
+                
+                // Конвертируем base64 в blob
+                const byteCharacters = atob(base64Data);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+                const blob = new Blob([byteArray], { type: mimeType });
+                
+                // Создаем URL для скачивания
+                const blobUrl = URL.createObjectURL(blob);
+                
+                // Создаем элемент <a> для скачивания
+                const link = document.createElement('a');
+                link.href = blobUrl;
+                link.download = `poligraf-generated-image-${Date.now()}.${format}`;
+                link.style.display = 'none';
+                
+                // Добавляем в DOM, кликаем и удаляем
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                // Освобождаем память
+                setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+                
+                console.log(`✅ Изображение скачано: poligraf-generated-image-${Date.now()}.${format}`);
+            } catch (e) {
+                console.error('❌ Ошибка при скачивании изображения:', e);
+                alert(`❌ Ошибка при скачивании: ${e.message}`);
             }
         }
         
