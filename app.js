@@ -752,7 +752,6 @@ function createProgressIndicator(container) {
     
     // Этап 1: Генерация графики
     const step1 = createProgressStep('Генерация графики', 'sparkle');
-    step1.classList.add('active');
     
     // Линия
     const line1 = document.createElement('div');
@@ -768,7 +767,7 @@ function createProgressIndicator(container) {
     // Карточка с изображением (скрыта по умолчанию)
     const imageCard = document.createElement('div');
     imageCard.className = 'progress-image-card';
-    imageCard.innerHTML = '<div style="padding: 12px; color: rgba(255,255,255,0.7); font-size: 12px;">Сгенерированное изображение</div><img src="" alt="Generated" style="display: none;">';
+    imageCard.innerHTML = '<div style="padding: 8px; color: rgba(255,255,255,0.7); font-size: 10px; text-align: center;">Сгенерированное изображение</div><img src="" alt="Generated" style="display: none;">';
     
     // Линия
     const line3 = document.createElement('div');
@@ -784,7 +783,7 @@ function createProgressIndicator(container) {
     // Этап 4: Полиграфия готова
     const step4 = createProgressStep('Полиграфия готова', 'check');
     
-    // Собираем структуру
+    // Собираем структуру - все элементы добавляются, но скрыты
     progressContainer.appendChild(step1);
     progressContainer.appendChild(line1);
     progressContainer.appendChild(step2);
@@ -793,6 +792,9 @@ function createProgressIndicator(container) {
     progressContainer.appendChild(step3);
     progressContainer.appendChild(line4);
     progressContainer.appendChild(step4);
+    
+    // Показываем только первый этап сразу
+    step1.classList.add('show', 'active');
     
     container.appendChild(progressContainer);
     
@@ -811,26 +813,38 @@ function createProgressIndicator(container) {
             const steps = [null, step1, step2, step3, step4];
             const step = steps[stepNumber];
             if (step) {
+                // Показываем этап, если он еще не показан
+                if (!step.classList.contains('show')) {
+                    step.classList.add('show');
+                }
+                
                 step.classList.remove('active', 'completed');
                 if (status === 'active') {
                     step.classList.add('active');
                 } else if (status === 'completed') {
                     step.classList.add('completed');
+                    step.classList.remove('active'); // Убираем пульсацию при завершении
                 }
             }
         },
         showImage: (imageUrl) => {
             const img = imageCard.querySelector('img');
             if (img && imageUrl) {
-                console.log('🖼️ Showing image in progress card, URL length:', imageUrl.length);
-                // Проверяем, что это data URL
-                if (imageUrl.startsWith('data:image')) {
+                console.log('🖼️ Showing image in progress card');
+                console.log('  - URL type:', typeof imageUrl);
+                console.log('  - URL length:', imageUrl?.length || 0);
+                console.log('  - URL preview:', imageUrl?.substring(0, 100) || 'N/A');
+                
+                // Проверяем, что это data URL (изображение), а не код
+                if (typeof imageUrl === 'string' && imageUrl.startsWith('data:image')) {
                     img.src = imageUrl;
                     img.style.display = 'block';
                     imageCard.classList.add('show');
                     console.log('✅ Image displayed in progress card');
                 } else {
-                    console.warn('⚠️ Image URL is not a data URL:', imageUrl.substring(0, 50));
+                    console.error('❌ Invalid image URL - not a data:image URL');
+                    console.error('  - Received:', imageUrl?.substring(0, 200) || 'N/A');
+                    // Не показываем карточку, если это не изображение
                 }
             } else {
                 console.warn('⚠️ Image element not found or imageUrl is empty');
@@ -901,19 +915,29 @@ async function sendToV0(prompt) {
             }
             generatedImage = await generateImage(prompt, uploadedImageBase64);
             console.log('✅ Image generated, proceeding to v0.dev');
+            console.log('📷 Generated image type check:', {
+                isString: typeof generatedImage === 'string',
+                startsWithDataImage: generatedImage?.startsWith('data:image'),
+                length: generatedImage?.length || 0,
+                preview: generatedImage?.substring(0, 100) || 'N/A'
+            });
             
             // Обновляем прогресс: графика готова, показываем изображение
             if (progressIndicator) {
                 progressIndicator.updateStep(1, 'completed');
                 // Небольшая задержка для анимации линии
                 setTimeout(() => {
+                    // Показываем этап 2 и карточку с изображением
                     progressIndicator.updateStep(2, 'active');
+                    if (generatedImage && generatedImage.startsWith('data:image')) {
+                        progressIndicator.showImage(generatedImage);
+                    } else {
+                        console.error('❌ Generated image is not a valid data:image URL!');
+                        console.error('  - Type:', typeof generatedImage);
+                        console.error('  - Value preview:', generatedImage?.substring(0, 200) || 'N/A');
+                    }
                     setTimeout(() => {
                         progressIndicator.updateStep(2, 'completed');
-                        if (generatedImage) {
-                            console.log('🖼️ Attempting to show generated image:', generatedImage.substring(0, 50) + '...');
-                            progressIndicator.showImage(generatedImage);
-                        }
                         // Переходим к следующему этапу
                         setTimeout(() => {
                             if (progressIndicator) {

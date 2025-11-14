@@ -188,31 +188,50 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 20px;
-    padding: 40px 20px;
-    max-width: 300px;
+    gap: 12px;
+    padding: 20px 15px;
+    max-width: 240px;
     width: 100%;
+    transform: scale(0.85);
+    transform-origin: center;
 }
 
 .progress-step {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 12px;
     width: 100%;
     opacity: 0;
-    transform: translateY(10px);
-    transition: opacity 0.5s ease, transform 0.5s ease;
+    transform: translateY(10px) scale(0.9);
+    transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+.progress-step.show {
+    opacity: 1;
+    transform: translateY(0) scale(1);
 }
 
 .progress-step.active {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
+    animation: pulseStep 1.5s ease-in-out infinite;
+}
+
+@keyframes pulseStep {
+    0%, 100% {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: translateY(0) scale(1.05);
+        opacity: 0.9;
+    }
 }
 
 .progress-step-icon {
-    width: 48px;
-    height: 48px;
-    border-radius: 12px;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
     background: rgba(59, 130, 246, 0.2);
     border: 2px solid rgba(59, 130, 246, 0.5);
     display: flex;
@@ -225,7 +244,17 @@ body {
 .progress-step.active .progress-step-icon {
     background: rgba(59, 130, 246, 0.3);
     border-color: rgba(59, 130, 246, 0.8);
-    box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+    box-shadow: 0 0 15px rgba(59, 130, 246, 0.4);
+    animation: pulseIcon 1.5s ease-in-out infinite;
+}
+
+@keyframes pulseIcon {
+    0%, 100% {
+        box-shadow: 0 0 15px rgba(59, 130, 246, 0.4);
+    }
+    50% {
+        box-shadow: 0 0 25px rgba(59, 130, 246, 0.6);
+    }
 }
 
 .progress-step.completed .progress-step-icon {
@@ -234,14 +263,14 @@ body {
 }
 
 .progress-step-icon svg {
-    width: 24px;
-    height: 24px;
+    width: 20px;
+    height: 20px;
     color: #ffffff;
 }
 
 .progress-step-text {
     color: rgba(255, 255, 255, 0.7);
-    font-size: 14px;
+    font-size: 12px;
     font-weight: 500;
     transition: color 0.3s ease;
 }
@@ -256,9 +285,9 @@ body {
 
 .progress-line {
     width: 2px;
-    height: 20px;
+    height: 16px;
     background: rgba(255, 255, 255, 0.1);
-    margin-left: 24px;
+    margin-left: 20px;
     position: relative;
     overflow: hidden;
 }
@@ -291,12 +320,12 @@ body {
 /* Карточка с изображением */
 .progress-image-card {
     width: 100%;
-    max-width: 280px;
-    border-radius: 12px;
+    max-width: 220px;
+    border-radius: 10px;
     overflow: hidden;
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    margin: 10px 0;
+    margin: 8px 0;
     opacity: 0;
     transform: scale(0.9);
     transition: opacity 0.5s ease, transform 0.5s ease;
@@ -311,6 +340,8 @@ body {
     width: 100%;
     height: auto;
     display: block;
+    max-height: 150px;
+    object-fit: contain;
 }
 
 .error-message {
