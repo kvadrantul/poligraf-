@@ -936,23 +936,41 @@ function createProgressIndicator(container) {
                 
                 // Проверяем, что это data URL (изображение), а не код
                 if (typeof imageUrl === 'string' && imageUrl.startsWith('data:image')) {
-                    // Проверяем, что изображение действительно загружается
+                    // Устанавливаем обработчики ДО установки src
                     img.onload = () => {
                         console.log('✅ Image loaded successfully in progress card');
+                        console.log('  - Image dimensions:', img.naturalWidth, 'x', img.naturalHeight);
+                        console.log('  - Image display style:', img.style.display);
+                        console.log('  - ImageCard display:', window.getComputedStyle(imageCard).display);
+                        console.log('  - ImageCard opacity:', window.getComputedStyle(imageCard).opacity);
+                        
+                        // Показываем карточку
                         imageCard.classList.add('show');
+                        img.style.display = 'block';
+                        
                         // Показываем линию после карточки изображения
                         if (line3) {
                             line3.style.display = 'block';
                             line3.classList.add('show');
                         }
                     };
-                    img.onerror = () => {
+                    img.onerror = (e) => {
                         console.error('❌ Failed to load image in progress card');
+                        console.error('  - Error:', e);
                         console.error('  - Image URL preview:', imageUrl.substring(0, 200));
                     };
+                    
+                    // Устанавливаем src ПОСЛЕ обработчиков
                     img.src = imageUrl;
                     img.style.display = 'block';
+                    img.style.width = '100%';
+                    img.style.height = '150px';
+                    img.style.objectFit = 'cover';
+                    img.style.background = '#000';
+                    
                     console.log('📷 Image src set, waiting for load...');
+                    console.log('  - Image element:', img);
+                    console.log('  - ImageCard element:', imageCard);
                 } else {
                     console.error('❌ Invalid image URL - not a data:image URL');
                     console.error('  - Received type:', typeof imageUrl);
@@ -963,6 +981,10 @@ function createProgressIndicator(container) {
                 console.warn('⚠️ Image element not found or imageUrl is empty');
                 console.warn('  - img exists:', !!img);
                 console.warn('  - imageUrl exists:', !!imageUrl);
+                if (imageCard) {
+                    console.warn('  - imageCard exists:', !!imageCard);
+                    console.warn('  - imageCard innerHTML:', imageCard.innerHTML.substring(0, 200));
+                }
             }
         },
         remove: () => {
