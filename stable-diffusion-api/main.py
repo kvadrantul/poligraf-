@@ -80,6 +80,7 @@ class GenerateRequest(BaseModel):
     guidance_scale: float = 7.0
     width: int = 1024
     height: int = 1024
+    negative_prompt: Optional[str] = None
 
 
 class GenerateResponse(BaseModel):
@@ -353,13 +354,27 @@ async def generate_image(request: GenerateRequest):
                     guidance = 1.0
                     print(f"⚡⚡⚡ LCM mode (FASTEST!): {steps} steps, guidance={guidance}")
                 
-                return pipe(
-                    prompt=request.prompt,
-                    num_inference_steps=steps,
-                    guidance_scale=guidance,
-                    width=width,
-                    height=height,
-                )
+                # Негативный промпт для image-to-image
+                negative_prompt = request.negative_prompt or "blurry, low quality, distorted, black image, dark, noise, text, watermark, signature"
+                
+                pipe_kwargs = {
+                    "prompt": request.prompt,
+                    "num_inference_steps": steps,
+                    "guidance_scale": guidance,
+                    "width": width,
+                    "height": height,
+                }
+                
+                # Добавляем negative_prompt если модель поддерживает
+                try:
+                    import inspect
+                    sig = inspect.signature(pipe)
+                    if "negative_prompt" in sig.parameters:
+                        pipe_kwargs["negative_prompt"] = negative_prompt
+                except:
+                    pipe_kwargs["negative_prompt"] = negative_prompt
+                
+                return pipe(**pipe_kwargs)
             else:
                 # Text-to-image режим
                 print("📝 Text-to-image mode")
@@ -403,14 +418,49 @@ async def generate_image(request: GenerateRequest):
                 print(f"📊 BEFORE pipe(): CPU={cpu_before:.1f}%, Threads={threads_before}")
                 sys.stdout.flush()
                 
+                # Негативный промпт для улучшения качества
+                negative_prompt = request.negative_prompt or "blurry, low quality, distorted, black image, dark, noise, text, watermark, signature"
+                
+                print(f"📝 Negative prompt: {negative_prompt[:50]}...")
+                
                 # Вызываем генерацию
-                result = pipe(
-                    prompt=request.prompt,
-                    num_inference_steps=steps,
-                    guidance_scale=guidance,
-                    width=width,
-                    height=height,
-                )
+                pipe_kwargs = {
+                    "prompt": request.prompt,
+                    "num_inference_steps": steps,
+                    "guidance_scale": guidance,
+                    "width": width,
+                    "height": height,
+                }
+                
+                # Добавляем negative_prompt если модель поддерживает
+                try:
+                    import inspect
+                    sig = inspect.signature(pipe)
+                    if "negative_prompt" in sig.parameters:
+                        pipe_kwargs["negative_prompt"] = negative_prompt
+                        print("✅ Using negative_prompt")
+                    else:
+                        print("⚠️ Model does not support negative_prompt, skipping")
+                except:
+                    # Если не удалось проверить, пробуем добавить
+                    pipe_kwargs["negative_prompt"] = negative_prompt
+                
+                result = pipe(**pipe_kwargs)
+                
+                # Проверяем результат - не черное ли изображение
+                if result and hasattr(result, 'images') and len(result.images) > 0:
+                    img = result.images[0]
+                    # Проверяем, что изображение не полностью черное
+                    import numpy as np
+                    img_array = np.array(img)
+                    if img_array.size > 0:
+                        mean_brightness = img_array.mean()
+                        print(f"📊 Image mean brightness: {mean_brightness:.2f}")
+                        if mean_brightness < 5:
+                            print("⚠️ WARNING: Image appears to be mostly black (mean brightness < 5)")
+                            print("   This might indicate a problem with the prompt or model")
+                        elif mean_brightness > 250:
+                            print("⚠️ WARNING: Image appears to be mostly white (mean brightness > 250)")
                 
                 # Проверяем CPU после вызова
                 cpu_after = process.cpu_percent(interval=0.1)
