@@ -332,21 +332,93 @@ function renderReactComponent(codeText, container) {
                 iframeCode = iframeCode.replace(/,\s*\}/g, '}');
                 iframeCode = iframeCode.replace(/,\s*\]/g, ']');
                 
-                // КРИТИЧЕСКИ ВАЖНО: Проверяем и закрываем незакрытые объекты перед вставкой const Component
-                // Проблема: если backgroundImage обрезан, объект style может остаться незакрытым
-                // и const Component окажется внутри него, что вызовет SyntaxError
+                // КРИТИЧЕСКИ ВАЖНО: Исправляем обрезанные backgroundImage и закрываем незакрытые объекты
+                // Проблема: v0.dev генерирует код с base64 изображением, но обрезает его посередине
+                // Это оставляет незакрытые объекты, и const Component оказывается внутри них
                 
+                // ШАГ 1: Находим и удаляем все обрезанные backgroundImage
+                // Ищем строки с backgroundImage, которые не заканчиваются на )`
+                const backgroundImageRegex = /backgroundImage:\s*`url\(['"](data:image[^`]*?)(?:['"]\)`|$)/g;
+                let foundBrokenBackgroundImage = false;
+                iframeCode = iframeCode.replace(backgroundImageRegex, (match, url) => {
+                    // Если match не заканчивается на )`, значит он обрезан
+                    if (!match.endsWith(')`')) {
+                        foundBrokenBackgroundImage = true;
+                        console.warn('⚠️ Обнаружен обрезанный backgroundImage, удаляем его');
+                        return ''; // Удаляем обрезанный backgroundImage
+                    }
+                    return match;
+                });
+                
+                // ШАГ 2: Если был найден обрезанный backgroundImage, нужно правильно закрыть объект style
+                if (foundBrokenBackgroundImage) {
+                    // Ищем последнее вхождение style={{ и закрываем его правильно
+                    // Находим все незакрытые объекты style
+                    const styleRegex = /style=\{\{([^}]*?)(?:\}\}|$)/g;
+                    let styleMatch;
+                    let lastStyleIndex = -1;
+                    while ((styleMatch = styleRegex.exec(iframeCode)) !== null) {
+                        lastStyleIndex = styleMatch.index;
+                    }
+                    
+                    if (lastStyleIndex >= 0) {
+                        // Находим позицию после последнего style={{
+                        const afterStyle = iframeCode.substring(lastStyleIndex);
+                        const styleEnd = afterStyle.indexOf('}}');
+                        
+                        if (styleEnd === -1 || styleEnd > 1000) {
+                            // Объект style не закрыт, закрываем его
+                            // Находим конец строки с style
+                            const lineEnd = afterStyle.indexOf('\n');
+                            if (lineEnd > 0) {
+                                // Вставляем }} перед переносом строки
+                                const beforeLine = iframeCode.substring(0, lastStyleIndex + lineEnd);
+                                const afterLine = iframeCode.substring(lastStyleIndex + lineEnd);
+                                
+                                // Проверяем, есть ли запятая перед закрытием
+                                const needsComma = !beforeLine.trim().endsWith(',') && 
+                                                   !beforeLine.trim().endsWith('{') &&
+                                                   afterLine.trim() && 
+                                                   !afterLine.trim().startsWith('}');
+                                
+                                iframeCode = beforeLine + (needsComma ? ',' : '') + '\n}}' + afterLine;
+                                console.warn('✅ Закрыт незакрытый объект style');
+                            }
+                        }
+                    }
+                }
+                
+                // ШАГ 3: Проверяем баланс скобок и закрываем незакрытые объекты
                 // Считаем открывающие и закрывающие фигурные скобки
                 let openBraces = (iframeCode.match(/\{/g) || []).length;
                 let closeBraces = (iframeCode.match(/\}/g) || []).length;
                 let braceDiff = openBraces - closeBraces;
                 
-                // Если есть незакрытые скобки, закрываем их
+                // Если есть незакрытые скобки, закрываем их УМНО - не просто в конец, а в правильных местах
                 if (braceDiff > 0) {
-                    console.warn(`⚠️ Обнаружено ${braceDiff} незакрытых фигурных скобок, закрываем их`);
-                    // Закрываем незакрытые объекты
-                    for (let i = 0; i < braceDiff; i++) {
-                        iframeCode += '\n}';
+                    console.warn(`⚠️ Обнаружено ${braceDiff} незакрытых фигурных скобок`);
+                    
+                    // Ищем последние незакрытые объекты и закрываем их перед const Component
+                    // Находим позицию, где должен начинаться const Component
+                    const componentStart = iframeCode.indexOf('const Component');
+                    if (componentStart > 0) {
+                        // Вставляем закрывающие скобки перед const Component
+                        const beforeComponent = iframeCode.substring(0, componentStart);
+                        const afterComponent = iframeCode.substring(componentStart);
+                        
+                        // Закрываем незакрытые объекты
+                        let closingBraces = '';
+                        for (let i = 0; i < braceDiff; i++) {
+                            closingBraces += '\n}';
+                        }
+                        
+                        iframeCode = beforeComponent.trim() + closingBraces + '\n\n' + afterComponent;
+                        console.warn(`✅ Закрыто ${braceDiff} незакрытых объектов перед const Component`);
+                    } else {
+                        // Если const Component еще не вставлен, просто добавляем в конец
+                        for (let i = 0; i < braceDiff; i++) {
+                            iframeCode += '\n}';
+                        }
                     }
                 }
                 
@@ -357,8 +429,14 @@ function renderReactComponent(codeText, container) {
                 
                 if (parenDiff > 0) {
                     console.warn(`⚠️ Обнаружено ${parenDiff} незакрытых круглых скобок, закрываем их`);
-                    for (let i = 0; i < parenDiff; i++) {
-                        iframeCode += ')';
+                    // Закрываем перед const Component, если он есть
+                    const componentStart = iframeCode.indexOf('const Component');
+                    if (componentStart > 0) {
+                        const beforeComponent = iframeCode.substring(0, componentStart);
+                        const afterComponent = iframeCode.substring(componentStart);
+                        iframeCode = beforeComponent + ')'.repeat(parenDiff) + '\n\n' + afterComponent;
+                    } else {
+                        iframeCode += ')'.repeat(parenDiff);
                     }
                 }
                 
