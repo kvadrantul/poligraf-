@@ -89,6 +89,8 @@ def load_model():
 
     print(f"📦 Loading model: {MODEL_ID}")
     print("⏳ This may take a few minutes on first run...")
+    print("⏳ If model is not cached, it will download from Hugging Face (~4GB)")
+    sys.stdout.flush()
 
     try:
         # Определяем, какой пайплайн использовать в зависимости от модели
@@ -129,11 +131,21 @@ def load_model():
             # Стандартный Stable Diffusion (1.5, 2.1)
             from diffusers import StableDiffusionPipeline
             print("📦 Using standard Stable Diffusion pipeline")
+            print(f"📥 Loading model: {MODEL_ID}")
+            print("⏳ This may take a while (downloading from Hugging Face if not cached)...")
+            sys.stdout.flush()
             
-            pipe = StableDiffusionPipeline.from_pretrained(
-                MODEL_ID,
-                torch_dtype=torch.float16 if device == "cuda" else torch.float32,
-            )
+            try:
+                pipe = StableDiffusionPipeline.from_pretrained(
+                    MODEL_ID,
+                    torch_dtype=torch.float16 if device == "cuda" else torch.float32,
+                )
+                print("✅ Model downloaded/loaded from cache")
+                sys.stdout.flush()
+            except Exception as e:
+                print(f"❌ Error loading model: {e}")
+                sys.stdout.flush()
+                raise
         pipe = pipe.to(device)
 
         # Оптимизация для ускорения (для CPU и CUDA)
