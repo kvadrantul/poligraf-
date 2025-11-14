@@ -323,7 +323,20 @@ function renderReactComponent(codeText, container) {
                                 // Если URL не пустой, формируем правильную строку
                                 if (urlPart && urlPart.length > 0) {
                                     const beforeUrl = line.substring(0, urlStartIndex);
-                                    lines[i] = `${beforeUrl}${urlPart}")\``;
+                                    let fixedLine = `${beforeUrl}${urlPart}")\``;
+                                    
+                                    // Проверяем, нужно ли добавить запятую после backgroundImage
+                                    // Смотрим на следующую строку, чтобы понять, есть ли еще свойства
+                                    if (i + 1 < lines.length) {
+                                        const nextLine = lines[i + 1].trim();
+                                        // Если следующая строка содержит свойство объекта (начинается с буквы или содержит :),
+                                        // но текущая строка не заканчивается на запятую, добавляем запятую
+                                        if (nextLine && (nextLine.match(/^\w+:/) || nextLine.includes(':')) && !fixedLine.trim().endsWith(',')) {
+                                            fixedLine += ',';
+                                        }
+                                    }
+                                    
+                                    lines[i] = fixedLine;
                                 } else {
                                     // Если URL пустой, удаляем backgroundImage из строки
                                     lines[i] = line.replace(/backgroundImage:\s*`url\([^`]*/, '').trim();
@@ -333,7 +346,21 @@ function renderReactComponent(codeText, container) {
                     }
                 }
                 
+                // Дополнительная проверка: убеждаемся, что все backgroundImage правильно закрыты
+                // и имеют запятую, если это не последнее свойство
                 iframeCode = lines.join('\n');
+                
+                // Исправляем случаи, где backgroundImage закрыт, но нет запятой перед следующим свойством
+                iframeCode = iframeCode.replace(/backgroundImage:\s*`url\("([^"]+)"\)`\s*(?!,|\s*})/g, (match, url) => {
+                    // Проверяем, есть ли после этого что-то еще в объекте
+                    const afterMatch = iframeCode.substring(iframeCode.indexOf(match) + match.length);
+                    // Если после backgroundImage есть еще свойства (начинаются с буквы и содержат :),
+                    // добавляем запятую
+                    if (afterMatch.match(/^\s*\w+:/)) {
+                        return match + ',';
+                    }
+                    return match;
+                });
                 
                 let componentName = 'Component';
                 const exportMatch = iframeCode.match(/export\s+default\s+function\s+(\w+)/);
