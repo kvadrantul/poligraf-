@@ -115,10 +115,16 @@ def load_model():
             )
         pipe = pipe.to(device)
 
-        # Оптимизация для ускорения
-        if device == "cuda":
-            pipe.enable_attention_slicing()
-            pipe.enable_vae_slicing()
+        # Оптимизация для ускорения (для CPU и CUDA)
+        pipe.enable_attention_slicing(1)  # Включаем для CPU тоже - экономит память и может ускорить
+        pipe.enable_vae_slicing()  # Включаем для CPU - экономит память
+        
+        # Для CPU используем float32 (не float16) - это уже установлено выше
+        # Дополнительные оптимизации для CPU
+        if device == "cpu":
+            # Используем однопоточность для стабильности на CPU
+            torch.set_num_threads(1)
+            print("🔧 CPU optimizations: attention_slicing, vae_slicing, single thread")
 
         print("✅ Model loaded successfully")
         return pipe
@@ -166,10 +172,10 @@ async def generate_image(request: GenerateRequest):
             width = ((request.width + 7) // 8) * 8
             height = ((request.height + 7) // 8) * 8
             
-            # Для SD 1.5 (не SDXL) ограничиваем максимальный размер 768x768 для скорости
+            # Для SD 1.4/1.5 (не SDXL) ограничиваем максимальный размер 512x512 для максимальной скорости
             if "sdxl" not in MODEL_ID.lower() and "stable-diffusion-3" not in MODEL_ID.lower():
-                width = min(width, 768)
-                height = min(height, 768)
+                width = min(width, 512)  # Ограничиваем до 512 для скорости
+                height = min(height, 512)
             
             if width != request.width or height != request.height:
                 print(f"⚠️ Adjusted image size from {request.width}x{request.height} to {width}x{height} (must be multiple of 8)")
