@@ -66,12 +66,12 @@ func generateImageWithStableDiffusion(apiUrl, prompt, referenceImage string) (st
 	apiEndpoint := fmt.Sprintf("%s/generate", apiUrl)
 
 	// Формируем запрос
-	// Для LCM модели используем 2 шага (самая быстрая генерация!)
+	// Для SD 1.4 используем минимальные параметры для максимальной скорости
 	requestBody := map[string]interface{}{
 		"prompt":              prompt,
-		"num_inference_steps": 2,   // LCM работает с 1-2 шагами (самая быстрая модель!)
-		"guidance_scale":      1.0, // LCM использует низкий guidance
-		"width":               512,  // SD 1.5 лучше работает с 512x512 (быстрее чем 1024x1024)
+		"num_inference_steps": 10,  // Минимум для базового качества SD 1.4
+		"guidance_scale":      7.5, // Стандартный guidance для SD 1.4
+		"width":               512, // Минимальный размер для скорости
 		"height":              512,
 	}
 

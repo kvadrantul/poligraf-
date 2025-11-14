@@ -209,11 +209,16 @@ async def generate_image(request: GenerateRequest):
                 # Text-to-image режим
                 print("📝 Text-to-image mode")
                 
-                # Для Turbo/Lightning/LCM моделей используем меньше шагов и guidance_scale
+                # Для разных моделей используем оптимальные параметры
                 steps = request.num_inference_steps
                 guidance = request.guidance_scale
                 
-                if "lcm" in MODEL_ID.lower():
+                if "v1-4" in MODEL_ID.lower() or "stable-diffusion-v1-4" in MODEL_ID.lower():
+                    # SD 1.4 - самая простая модель, используем минимальные шаги для скорости
+                    steps = min(steps, 10)  # Минимум для базового качества
+                    guidance = 7.5  # Стандартный guidance для SD 1.4
+                    print(f"⚡⚡⚡⚡ SD 1.4 mode (SIMPLEST!): {steps} steps, guidance={guidance}")
+                elif "lcm" in MODEL_ID.lower():
                     # LCM модели работают лучше с 1-2 шагами (самые быстрые!)
                     steps = min(steps, 2)
                     guidance = 1.0  # LCM использует низкий guidance
