@@ -32,8 +32,13 @@ if (!resultContent) {
 }
 
 // Конфигурация API
-const API_BASE = 'https://poligraf-black.vercel.app';
+// Автоматически определяем окружение: если на localhost, используем локальный backend
+const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const API_BASE = isLocalhost ? 'http://localhost:8080' : 'https://poligraf-black.vercel.app';
 const API_GENERATE = `${API_BASE}/api/generate`; // Model API - быстрая генерация
+
+console.log('🌍 Environment:', isLocalhost ? 'LOCAL' : 'PRODUCTION');
+console.log('🔗 API Base:', API_BASE);
 
 // Получаем Telegram User ID
 let userId;
