@@ -400,22 +400,22 @@ async def generate_image(request: GenerateRequest):
                 return result
         
         # Запускаем генерацию в отдельном потоке через asyncio (не блокирует event loop)
-        # Таймаут 30 секунд для быстрой диагностики
-        print("⏱️  Starting generation with 30 second timeout...")
+        # Таймаут 60 секунд (генерация ~20-25 сек + конвертация ~5 сек)
+        print("⏱️  Starting generation with 60 second timeout...")
         sys.stdout.flush()
         try:
             result = await asyncio.wait_for(
                 asyncio.to_thread(generate),
-                timeout=30.0  # 30 секунд таймаут для диагностики
+                timeout=60.0  # 60 секунд таймаут (генерация + конвертация)
             )
             print("✅ Generation completed within timeout")
             sys.stdout.flush()
         except asyncio.TimeoutError:
-            print("❌ TIMEOUT: Generation exceeded 30 seconds!")
+            print("❌ TIMEOUT: Generation exceeded 60 seconds!")
             sys.stdout.flush()
             raise HTTPException(
                 status_code=408,
-                detail="Image generation timeout (30 seconds). Model may be too slow or not using CPU cores."
+                detail="Image generation timeout (60 seconds). Model may be too slow or not using CPU cores."
             )
 
         # Получаем изображение
