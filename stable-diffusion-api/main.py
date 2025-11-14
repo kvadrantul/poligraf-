@@ -10,39 +10,37 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 import sys
 
-import torch
-from diffusers import StableDiffusionPipeline
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-import multiprocessing
-import psutil
-
-app = FastAPI(title="Stable Diffusion 3.5 Medium API")
-
-# ⚡ КРИТИЧНО: Настраиваем PyTorch для использования ВСЕХ ядер CPU
+# ⚡ КРИТИЧНО: Настраиваем переменные окружения ДО импорта torch
 # Mac Mini M4 имеет 10 ядер (4 performance + 6 efficiency)
+import multiprocessing
 NUM_CPU_CORES = multiprocessing.cpu_count()
-print(f"🔧 Detected CPU cores: {NUM_CPU_CORES}")
 
-# Устанавливаем переменные окружения для OpenMP/MKL (если доступны)
-# КРИТИЧНО: Устанавливаем ДО любых операций с PyTorch
+# Устанавливаем переменные окружения для OpenMP/MKL ДО импорта torch
 os.environ["OMP_NUM_THREADS"] = str(NUM_CPU_CORES)
 os.environ["MKL_NUM_THREADS"] = str(NUM_CPU_CORES)
 os.environ["NUMEXPR_NUM_THREADS"] = str(NUM_CPU_CORES)
 os.environ["OPENBLAS_NUM_THREADS"] = str(NUM_CPU_CORES)
 os.environ["VECLIB_MAXIMUM_THREADS"] = str(NUM_CPU_CORES)
 
+print(f"🔧 Detected CPU cores: {NUM_CPU_CORES}")
+print(f"🔧 Environment variables set: OMP_NUM_THREADS={NUM_CPU_CORES}")
+
+# Теперь импортируем torch ПОСЛЕ установки переменных окружения
+import torch
+from diffusers import StableDiffusionPipeline
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+import psutil
+
+app = FastAPI(title="Stable Diffusion 3.5 Medium API")
+
 # Устанавливаем количество потоков для PyTorch
-# ВАЖНО: interop_threads устанавливается только один раз при первом вызове
-# Если уже был вызван - будет ошибка, поэтому устанавливаем только num_threads
 torch.set_num_threads(NUM_CPU_CORES)
-# torch.set_num_interop_threads(NUM_CPU_CORES)  # Не устанавливаем здесь - может вызвать ошибку
+# interop_threads устанавливается автоматически при первом использовании
 
 print(f"✅ PyTorch configured to use {NUM_CPU_CORES} threads")
 print(f"✅ PyTorch get_num_threads(): {torch.get_num_threads()}")
-print(f"✅ PyTorch get_num_interop_threads(): {torch.get_num_interop_threads()}")
-print(f"✅ Environment variables: OMP_NUM_THREADS={os.environ.get('OMP_NUM_THREADS')}, MKL_NUM_THREADS={os.environ.get('MKL_NUM_THREADS')}")
 
 # Настройка CORS
 app.add_middleware(
