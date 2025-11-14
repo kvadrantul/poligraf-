@@ -397,18 +397,19 @@ async def generate_image(request: GenerateRequest):
                 guidance = request.guidance_scale
                 # ВАЖНО: увеличиваем strength для максимального сохранения референса
                 # strength = 0.9-0.95 означает, что модель будет очень сильно следовать референсу
-                strength = 0.9  # Высокая сила для максимального сохранения элементов из референса
+                # Увеличиваем до 0.95 для еще более точного сохранения элементов из референса
+                strength = 0.95  # Очень высокая сила для максимального сохранения элементов из референса
                 
                 if "v1-4" in MODEL_ID.lower() or "stable-diffusion-v1-4" in MODEL_ID.lower():
                     steps = min(steps, 10)
                     guidance = 7.5
-                    strength = 0.9  # Очень высокая сила для SD 1.4
-                    print(f"⚡⚡⚡⚡ SD 1.4 mode (HIGH STRENGTH!): {steps} steps, guidance={guidance}, strength={strength}")
+                    strength = 0.95  # Максимальная сила для SD 1.4
+                    print(f"⚡⚡⚡⚡ SD 1.4 mode (MAXIMUM STRENGTH!): {steps} steps, guidance={guidance}, strength={strength}")
                 elif "lcm" in MODEL_ID.lower():
                     steps = max(steps, 4)  # LCM минимум 4 шага для нормального качества
                     guidance = 2.0
-                    strength = 0.9  # Очень высокая сила для LCM
-                    print(f"⚡⚡⚡ LCM mode (HIGH STRENGTH!): {steps} steps, guidance={guidance}, strength={strength}")
+                    strength = 0.95  # Максимальная сила для LCM
+                    print(f"⚡⚡⚡ LCM mode (MAXIMUM STRENGTH!): {steps} steps, guidance={guidance}, strength={strength}")
                 
                 print(f"📝 Prompt: {request.prompt[:100]}...")
                 print(f"🔧 Strength={strength} means model will follow reference image VERY closely")
