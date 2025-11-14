@@ -75,9 +75,11 @@ body {
     min-height: 0;
     max-height: 100vh;
     overflow-y: auto;
+    overflow-x: hidden;
     padding: 0;
     background: #000000;
     box-sizing: border-box;
+    position: relative;
 }
 
 .placeholder {
@@ -112,6 +114,7 @@ body {
     flex-direction: column;
     max-height: 100vh;
     box-sizing: border-box;
+    position: relative;
 }
 
 .react-iframe {
@@ -125,6 +128,9 @@ body {
     padding: 0;
     background: transparent;
     box-sizing: border-box;
+    display: block;
+    overflow: hidden;
+    position: relative;
 }
 
 .result-text {

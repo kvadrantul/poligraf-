@@ -345,17 +345,34 @@ function renderReactComponent(codeText, container) {
                     try {
                         const iframeBody = iframeDoc.body;
                         const iframeRoot = iframeDoc.getElementById('root');
+                        const iframeHtml = iframeDoc.documentElement;
+                        
                         if (iframeBody && iframeRoot) {
-                            const height = Math.max(
+                            // Получаем максимальную высоту контента
+                            const contentHeight = Math.max(
                                 iframeBody.scrollHeight,
                                 iframeBody.offsetHeight,
                                 iframeRoot.scrollHeight,
-                                iframeRoot.offsetHeight
+                                iframeRoot.offsetHeight,
+                                iframeHtml.scrollHeight,
+                                iframeHtml.offsetHeight
                             );
-                            iframe.style.height = height + 'px';
+                            
+                            // Ограничиваем высоту iframe максимальной высотой контейнера
+                            const container = iframe.closest('.react-render-container');
+                            const maxHeight = container ? container.clientHeight : window.innerHeight;
+                            
+                            // Устанавливаем высоту, но не больше доступного пространства
+                            const finalHeight = Math.min(contentHeight, maxHeight);
+                            iframe.style.height = finalHeight + 'px';
+                            
+                            // Убеждаемся, что iframe не выходит за границы
+                            iframe.style.maxHeight = maxHeight + 'px';
+                            iframe.style.overflow = 'hidden';
                         }
                     } catch (e) {
                         // Игнорируем ошибки доступа к iframe
+                        console.warn('Ошибка при настройке высоты iframe:', e);
                     }
                 };
                 
@@ -509,9 +526,31 @@ function displayResult(result) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+        }
+        #root {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            min-height: 100%;
+        }
+    </style>
 </head>
-<body style="margin: 0; padding: 0;">
-    ${codeText}
+<body style="margin: 0; padding: 0; width: 100%; height: 100%; overflow: auto;">
+    <div id="root" style="margin: 0; padding: 0; width: 100%; min-height: 100%;">
+        ${codeText}
+    </div>
 </body>
 </html>`;
                             iframeDoc.open();
