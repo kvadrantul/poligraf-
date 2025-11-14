@@ -116,3 +116,4 @@ python3 main.py
 - Убедитесь, что PyTorch установлен правильно
 - Проверьте версию: `python3 -c "import torch; print(torch.__version__)"`
 
+

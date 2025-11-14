@@ -86,3 +86,4 @@ curl -X POST http://localhost:7861/generate \
 - Для GPU требуется установленный NVIDIA Docker runtime
 
 
+

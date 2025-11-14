@@ -280,21 +280,19 @@ function renderReactComponent(codeText, container) {
                 // которая может обрываться, оставляя незакрытый template literal, что ломает парсинг Babel
                 // Решение: находим все незакрытые template literals в backgroundImage и закрываем их правильно
                 
-                // Простое решение: находим все строки с backgroundImage, которые содержат незакрытый template literal
-                // и закрываем их, добавляя )` в конце строки, если его нет
+                // Сначала находим все строки с backgroundImage и проверяем, правильно ли они закрыты
+                // Если строка обрезана (не заканчивается на )`), удаляем это свойство, т.к. оно нерабочее
                 iframeCode = iframeCode.replace(/backgroundImage:\s*`url\((['"])(data:image[^`]*?)(?:\1\)`|$)/g, (match, quote, url) => {
-                    // Если match не заканчивается на )`, значит template literal не закрыт
+                    // Если match не заканчивается на )`, значит template literal не закрыт или обрезан
                     if (!match.endsWith(')`')) {
-                        // Заменяем одинарные кавычки на двойные внутри URL
+                        console.warn('⚠️ Обнаружен обрезанный backgroundImage, удаляем его:', match.substring(0, 100));
+                        // Удаляем это свойство полностью, т.к. оно нерабочее
+                        return '';
+                    }
+                    // Если строка правильно закрыта, но содержит одинарные кавычки, заменяем их на двойные
+                    if (quote === "'") {
                         let fixedUrl = url.replace(/'/g, '"').trim();
-                        
-                        // Если URL не пустой, закрываем template literal правильно
-                        if (fixedUrl && fixedUrl.length > 0) {
-                            return `backgroundImage: \`url("${fixedUrl}")\``;
-                        } else {
-                            // Если URL пустой, возвращаем пустую строку (удаляем backgroundImage)
-                            return '';
-                        }
+                        return `backgroundImage: \`url("${fixedUrl}")\``;
                     }
                     return match;
                 });

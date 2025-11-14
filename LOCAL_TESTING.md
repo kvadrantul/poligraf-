@@ -170,3 +170,4 @@ OPENAI_API_KEY=ваш_ключ_openai   # опционально, для fallbac
 ⚠️ **Не коммитьте `.env.local` в git!**
 
 
+

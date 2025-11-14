@@ -359,6 +359,27 @@ func callV0(apiKey, userPrompt, image string) (string, error) {
 		log.Println("⚠️ Content does not contain code blocks - may be plain text")
 	}
 	
+	// Проверяем, не обрезана ли base64 строка в backgroundImage
+	if strings.Contains(content, "backgroundImage") {
+		// Ищем все вхождения backgroundImage
+		backgroundImageRegex := regexp.MustCompile(`backgroundImage:\s*\` + "`" + `url\(['"](data:image[^'"]*?)(?:['"]\)` + "`" + `|$)`)
+		matches := backgroundImageRegex.FindAllStringSubmatch(content, -1)
+		for i, match := range matches {
+			if len(match) > 1 {
+				urlPart := match[1]
+				log.Printf("📷 backgroundImage #%d: length=%d, ends with '...'=%v", i+1, len(urlPart), strings.HasSuffix(urlPart, "..."))
+				if len(urlPart) > 100 {
+					log.Printf("📷 backgroundImage #%d preview (first 100): %s", i+1, urlPart[:100])
+					log.Printf("📷 backgroundImage #%d preview (last 100): %s", i+1, urlPart[len(urlPart)-100:])
+				}
+				// Проверяем, закрыт ли template literal
+				if !strings.Contains(match[0], "`") {
+					log.Printf("⚠️ backgroundImage #%d: template literal not closed!", i+1)
+				}
+			}
+		}
+	}
+	
 	return content, nil
 }
 
