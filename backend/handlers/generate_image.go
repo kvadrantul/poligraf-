@@ -66,11 +66,11 @@ func generateImageWithStableDiffusion(apiUrl, prompt, referenceImage, negativePr
 	apiEndpoint := fmt.Sprintf("%s/generate", apiUrl)
 
 	// Формируем запрос
-		// Для LCM Dreamshaper используем оптимальные параметры (1-2 шага, быстрее!)
+		// Для LCM Dreamshaper используем оптимальные параметры (4 шага для нормального качества!)
 		requestBody := map[string]interface{}{
 			"prompt":              prompt,
-			"num_inference_steps": 2,   // LCM работает с 1-2 шагами (САМОЕ БЫСТРОЕ!)
-			"guidance_scale":      1.0, // LCM использует низкий guidance
+			"num_inference_steps": 4,   // LCM работает с 4+ шагами (2 шага дают черные изображения!)
+			"guidance_scale":      2.0, // LCM использует низкий guidance, но не слишком низкий
 			"width":               512, // Минимальный размер для скорости
 			"height":              512,
 		}

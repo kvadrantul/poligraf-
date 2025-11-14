@@ -390,10 +390,10 @@ async def generate_image(request: GenerateRequest):
                     guidance = 7.5  # Стандартный guidance для SD 1.4
                     print(f"⚡⚡⚡⚡ SD 1.4 mode (SIMPLEST!): {steps} steps, guidance={guidance}")
                 elif "lcm" in MODEL_ID.lower():
-                    # LCM модели работают лучше с 1-2 шагами (самые быстрые!)
-                    steps = min(steps, 2)
-                    guidance = 1.0  # LCM использует низкий guidance
-                    print(f"⚡⚡⚡ LCM mode (FASTEST!): {steps} steps, guidance={guidance}")
+                    # LCM модели работают лучше с 4-8 шагами (2 шага дают черные изображения!)
+                    steps = max(steps, 4)  # Минимум 4 шага для нормального качества
+                    guidance = 2.0  # LCM использует низкий guidance, но не слишком низкий
+                    print(f"⚡⚡⚡ LCM mode (OPTIMIZED): {steps} steps, guidance={guidance}")
                 elif "turbo" in MODEL_ID.lower():
                     # Turbo работает лучше с 1-4 шагами
                     steps = min(steps, 4)
