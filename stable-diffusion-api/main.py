@@ -180,10 +180,26 @@ async def generate_image(request: GenerateRequest):
     try:
         # Загружаем модель если еще не загружена (в отдельном потоке, чтобы не блокировать)
         if pipe is None:
-            print("📦 Loading model in background thread...")
+            print("=" * 60)
+            print("📦 MODEL NOT LOADED - Starting model loading...")
+            print("=" * 60)
+            process = psutil.Process(os.getpid())
+            cpu_before = process.cpu_percent(interval=0.1)
+            threads_before = process.num_threads()
+            memory_before = process.memory_info().rss / 1024 / 1024
+            print(f"📊 BEFORE load_model(): CPU={cpu_before:.1f}%, Threads={threads_before}, Memory={memory_before:.1f}MB")
+            sys.stdout.flush()
+            
             # Используем asyncio.to_thread для неблокирующей загрузки
             await asyncio.to_thread(load_model)
+            
+            cpu_after = process.cpu_percent(interval=0.1)
+            threads_after = process.num_threads()
+            memory_after = process.memory_info().rss / 1024 / 1024
+            print(f"📊 AFTER load_model(): CPU={cpu_after:.1f}%, Threads={threads_after}, Memory={memory_after:.1f}MB")
             print("✅ Model loaded, proceeding with generation")
+            print("=" * 60)
+            sys.stdout.flush()
 
         print(f"🎨 Generating image with prompt: {request.prompt[:100]}...")
         print(f"📷 Has reference image: {request.reference_image is not None}")
@@ -312,14 +328,17 @@ async def generate_image(request: GenerateRequest):
         # Запускаем генерацию в отдельном потоке через asyncio (не блокирует event loop)
         # Таймаут 30 секунд для быстрой диагностики
         print("⏱️  Starting generation with 30 second timeout...")
+        sys.stdout.flush()
         try:
             result = await asyncio.wait_for(
                 asyncio.to_thread(generate),
                 timeout=30.0  # 30 секунд таймаут для диагностики
             )
             print("✅ Generation completed within timeout")
+            sys.stdout.flush()
         except asyncio.TimeoutError:
             print("❌ TIMEOUT: Generation exceeded 30 seconds!")
+            sys.stdout.flush()
             raise HTTPException(
                 status_code=408,
                 detail="Image generation timeout (30 seconds). Model may be too slow or not using CPU cores."
