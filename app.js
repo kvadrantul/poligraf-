@@ -278,87 +278,59 @@ function renderReactComponent(codeText, container) {
                 // ИСПРАВЛЕНИЕ: Исправляем незакрытые template literals в backgroundImage
                 // Проблема: style={{backgroundImage: `url('data:image/jpeg;base64,...')`}} содержит очень длинную base64 строку
                 // которая может обрываться, оставляя незакрытый template literal, что ломает парсинг Babel
-                // Решение: находим все незакрытые template literals в backgroundImage и закрываем их правильно
+                // Решение: находим все незакрытые template literals в backgroundImage и удаляем их правильно
                 
-                // Сначала находим все строки с backgroundImage и проверяем, правильно ли они закрыты
-                // Если строка обрезана (не заканчивается на )`), удаляем это свойство, т.к. оно нерабочее
-                iframeCode = iframeCode.replace(/backgroundImage:\s*`url\((['"])(data:image[^`]*?)(?:\1\)`|$)/g, (match, quote, url) => {
-                    // Если match не заканчивается на )`, значит template literal не закрыт или обрезан
-                    if (!match.endsWith(')`')) {
-                        console.warn('⚠️ Обнаружен обрезанный backgroundImage, удаляем его:', match.substring(0, 100));
-                        // Удаляем это свойство полностью, т.к. оно нерабочее
-                        return '';
-                    }
-                    // Если строка правильно закрыта, но содержит одинарные кавычки, заменяем их на двойные
-                    if (quote === "'") {
-                        let fixedUrl = url.replace(/'/g, '"').trim();
-                        return `backgroundImage: \`url("${fixedUrl}")\``;
-                    }
-                    return match;
-                });
-                
-                // Дополнительная проверка: находим строки с незакрытыми template literals построчно
-                // и закрываем их, если они обрезаны
+                // Обрабатываем построчно для более точного контроля
                 const lines = iframeCode.split('\n');
                 for (let i = 0; i < lines.length; i++) {
                     const line = lines[i];
                     
-                    // Проверяем, есть ли незакрытый template literal в backgroundImage
-                    if (line.includes('backgroundImage:') && line.includes('`url(') && !line.trim().endsWith(')`')) {
-                        // Находим позицию начала URL
-                        const urlStartMatch = line.match(/backgroundImage:\s*`url\((['"])(data:image)/);
-                        if (urlStartMatch) {
-                            const urlStartIndex = line.indexOf('data:image');
-                            if (urlStartIndex > 0) {
-                                // Извлекаем все после data:image до конца строки
-                                let urlPart = line.substring(urlStartIndex);
-                                // Убираем возможные лишние символы в конце
-                                urlPart = urlPart.replace(/[`),}\s]*$/, '').trim();
-                                
-                                // Заменяем одинарные кавычки на двойные
-                                urlPart = urlPart.replace(/'/g, '"');
-                                
-                                // Если URL не пустой, формируем правильную строку
-                                if (urlPart && urlPart.length > 0) {
-                                    const beforeUrl = line.substring(0, urlStartIndex);
-                                    let fixedLine = `${beforeUrl}${urlPart}")\``;
-                                    
-                                    // Проверяем, нужно ли добавить запятую после backgroundImage
-                                    // Смотрим на следующую строку, чтобы понять, есть ли еще свойства
-                                    if (i + 1 < lines.length) {
-                                        const nextLine = lines[i + 1].trim();
-                                        // Если следующая строка содержит свойство объекта (начинается с буквы или содержит :),
-                                        // но текущая строка не заканчивается на запятую, добавляем запятую
-                                        if (nextLine && (nextLine.match(/^\w+:/) || nextLine.includes(':')) && !fixedLine.trim().endsWith(',')) {
-                                            fixedLine += ',';
-                                        }
-                                    }
-                                    
-                                    lines[i] = fixedLine;
-                                } else {
-                                    // Если URL пустой, удаляем backgroundImage из строки
-                                    lines[i] = line.replace(/backgroundImage:\s*`url\([^`]*/, '').trim();
+                    // Проверяем, есть ли backgroundImage в строке
+                    if (line.includes('backgroundImage:')) {
+                        // Проверяем, правильно ли закрыт template literal
+                        const hasClosingBacktick = line.includes(')`') || line.match(/`url\([^`]*\)`/);
+                        
+                        if (!hasClosingBacktick) {
+                            // Строка обрезана или неправильно закрыта - удаляем её
+                            console.warn('⚠️ Обнаружен обрезанный backgroundImage, удаляем строку:', line.substring(0, 100));
+                            
+                            // Удаляем всю строку с backgroundImage, включая запятую перед ней (если есть)
+                            // Смотрим на предыдущую строку, чтобы убрать запятую
+                            if (i > 0) {
+                                const prevLine = lines[i - 1].trim();
+                                // Если предыдущая строка заканчивается на запятую, убираем её
+                                if (prevLine.endsWith(',')) {
+                                    lines[i - 1] = prevLine.slice(0, -1);
                                 }
+                            }
+                            
+                            // Удаляем текущую строку
+                            lines[i] = '';
+                        } else {
+                            // Строка правильно закрыта, но может содержать одинарные кавычки
+                            // Заменяем одинарные кавычки на двойные внутри URL
+                            if (line.includes("url('")) {
+                                lines[i] = line.replace(/url\('([^']+)'\)/g, 'url("$1")');
                             }
                         }
                     }
                 }
                 
-                // Дополнительная проверка: убеждаемся, что все backgroundImage правильно закрыты
-                // и имеют запятую, если это не последнее свойство
+                // Объединяем строки обратно
                 iframeCode = lines.join('\n');
                 
-                // Исправляем случаи, где backgroundImage закрыт, но нет запятой перед следующим свойством
-                iframeCode = iframeCode.replace(/backgroundImage:\s*`url\("([^"]+)"\)`\s*(?!,|\s*})/g, (match, url) => {
-                    // Проверяем, есть ли после этого что-то еще в объекте
-                    const afterMatch = iframeCode.substring(iframeCode.indexOf(match) + match.length);
-                    // Если после backgroundImage есть еще свойства (начинаются с буквы и содержат :),
-                    // добавляем запятую
-                    if (afterMatch.match(/^\s*\w+:/)) {
-                        return match + ',';
-                    }
-                    return match;
-                });
+                // Удаляем пустые строки внутри объектов (могут остаться после удаления backgroundImage)
+                // Ищем паттерн: запятая, затем пустая строка, затем закрывающая скобка или другое свойство
+                iframeCode = iframeCode.replace(/,\s*\n\s*\n\s*([,}])/g, '$1'); // Убираем пустые строки между запятой и следующим элементом
+                iframeCode = iframeCode.replace(/\{\s*\n\s*\n\s*([,}])/g, '{\n$1'); // Убираем пустые строки в начале объекта
+                iframeCode = iframeCode.replace(/([,}])\s*\n\s*\n\s*\}/g, '$1\n}'); // Убираем пустые строки перед закрывающей скобкой
+                
+                // Исправляем двойные запятые (могут остаться после удаления свойства)
+                iframeCode = iframeCode.replace(/,\s*,/g, ',');
+                
+                // Исправляем запятую перед закрывающей скобкой объекта
+                iframeCode = iframeCode.replace(/,\s*\}/g, '}');
+                iframeCode = iframeCode.replace(/,\s*\]/g, ']');
                 
                 let componentName = 'Component';
                 const exportMatch = iframeCode.match(/export\s+default\s+function\s+(\w+)/);
