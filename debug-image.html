@@ -51,35 +51,107 @@
 
     <script>
         function loadImage() {
-            const imageUrl = localStorage.getItem('poligraf-debug-generated-image');
+            const imageUrl = localStorage.getItem('poligraf-debug-generated-image') || 
+                           sessionStorage.getItem('poligraf-debug-generated-image');
             const infoDiv = document.getElementById('info');
             const imageContainer = document.getElementById('imageContainer');
             
             if (!imageUrl) {
-                infoDiv.innerHTML = '<p style="color: red;">❌ Изображение не найдено в localStorage</p>';
+                infoDiv.innerHTML = '<p style="color: red;">❌ Изображение не найдено в localStorage или sessionStorage</p>';
                 imageContainer.innerHTML = '';
                 return;
             }
             
+            // Проверяем, не обрезано ли изображение
+            const isTruncated = imageUrl.includes('[TRUNCATED]');
+            const actualLength = isTruncated ? imageUrl.indexOf('[TRUNCATED]') : imageUrl.length;
+            
             infoDiv.innerHTML = `
-                <p>✅ Изображение найдено в localStorage</p>
+                <p>✅ Изображение найдено</p>
+                <p>Источник: ${localStorage.getItem('poligraf-debug-generated-image') ? 'localStorage' : 'sessionStorage'}</p>
                 <p>Тип: ${typeof imageUrl}</p>
                 <p>Длина: ${imageUrl.length} символов</p>
+                ${isTruncated ? '<p style="color: orange;">⚠️ Изображение обрезано (слишком большое для localStorage)</p>' : ''}
                 <p>Начинается с data:image: ${imageUrl.startsWith('data:image')}</p>
+                <p>Формат: ${imageUrl.match(/data:image\/([^;]+)/)?.[1] || 'unknown'}</p>
                 <p>Превью URL (первые 200 символов):</p>
-                <pre style="background: #222; padding: 10px; overflow-x: auto;">${imageUrl.substring(0, 200)}...</pre>
+                <pre style="background: #222; padding: 10px; overflow-x: auto; font-size: 10px;">${imageUrl.substring(0, 200)}...</pre>
+                <p>Последние 100 символов:</p>
+                <pre style="background: #222; padding: 10px; overflow-x: auto; font-size: 10px;">...${imageUrl.substring(Math.max(0, imageUrl.length - 100))}</pre>
             `;
             
             if (imageUrl.startsWith('data:image')) {
                 const img = document.createElement('img');
-                img.src = imageUrl;
+                img.style.border = '2px solid #fff';
+                img.style.background = '#333';
+                img.style.minWidth = '200px';
+                img.style.minHeight = '200px';
+                
                 img.onload = () => {
-                    imageContainer.innerHTML = '<p>✅ Изображение успешно загружено:</p>';
+                    const width = img.naturalWidth;
+                    const height = img.naturalHeight;
+                    imageContainer.innerHTML = `
+                        <p>✅ Изображение успешно загружено</p>
+                        <p>Размеры: ${width}x${height} пикселей</p>
+                        <p>Размер файла: ~${(imageUrl.length * 3 / 4 / 1024).toFixed(2)} KB</p>
+                    `;
                     imageContainer.appendChild(img);
+                    
+                    // Пробуем также через canvas для проверки
+                    try {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0);
+                        const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+                        console.log('Canvas test - изображение валидное, можно перерисовать');
+                    } catch (e) {
+                        console.error('Canvas test failed:', e);
+                    }
                 };
-                img.onerror = () => {
-                    imageContainer.innerHTML = '<p style="color: red;">❌ Ошибка загрузки изображения</p>';
+                
+                img.onerror = (e) => {
+                    console.error('Image load error:', e);
+                    imageContainer.innerHTML = `
+                        <p style="color: red;">❌ Ошибка загрузки изображения</p>
+                        <p>Попробуем альтернативные методы...</p>
+                    `;
+                    
+                    // Пробуем через blob
+                    try {
+                        const base64Data = imageUrl.split(',')[1];
+                        if (!base64Data) {
+                            imageContainer.innerHTML += '<p style="color: red;">❌ Нет base64 данных в URL</p>';
+                            return;
+                        }
+                        
+                        const byteCharacters = atob(base64Data);
+                        const byteNumbers = new Array(byteCharacters.length);
+                        for (let i = 0; i < byteCharacters.length; i++) {
+                            byteNumbers[i] = byteCharacters.charCodeAt(i);
+                        }
+                        const byteArray = new Uint8Array(byteNumbers);
+                        const blob = new Blob([byteArray], { type: 'image/jpeg' });
+                        const blobUrl = URL.createObjectURL(blob);
+                        
+                        const img2 = document.createElement('img');
+                        img2.src = blobUrl;
+                        img2.style.border = '2px solid #0f0';
+                        img2.style.background = '#333';
+                        img2.onload = () => {
+                            imageContainer.innerHTML += '<p style="color: green;">✅ Изображение загружено через Blob URL</p>';
+                            imageContainer.appendChild(img2);
+                        };
+                        img2.onerror = () => {
+                            imageContainer.innerHTML += '<p style="color: red;">❌ Blob URL тоже не работает</p>';
+                        };
+                    } catch (e) {
+                        imageContainer.innerHTML += `<p style="color: red;">❌ Ошибка создания Blob: ${e.message}</p>`;
+                    }
                 };
+                
+                img.src = imageUrl;
             } else {
                 imageContainer.innerHTML = '<p style="color: red;">❌ Это не data:image URL</p>';
             }
