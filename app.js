@@ -825,7 +825,28 @@ ${truncatedHTML}
         }
 
         const data = await response.json();
-        const generatedCode = data.result || data.code || data.markup || data;
+        let generatedCode = data.result || data.code || data.markup || data;
+        
+        // Извлекаем код из markdown блоков (```tsx ... ``` или ```jsx ... ```)
+        if (typeof generatedCode === 'string') {
+            // Удаляем markdown блоки кода
+            const markdownCodeBlockRegex = /```(?:tsx|jsx|javascript|typescript|js|ts)?\s*\n?([\s\S]*?)```/g;
+            const matches = generatedCode.match(markdownCodeBlockRegex);
+            if (matches && matches.length > 0) {
+                // Берем первый блок кода
+                generatedCode = matches[0]
+                    .replace(/```(?:tsx|jsx|javascript|typescript|js|ts)?\s*\n?/g, '')
+                    .replace(/```\s*$/g, '')
+                    .trim();
+                console.log('✅ Extracted code from markdown block');
+            } else {
+                // Если нет markdown блоков, но есть ``` в начале/конце, убираем их
+                generatedCode = generatedCode
+                    .replace(/^```(?:tsx|jsx|javascript|typescript|js|ts)?\s*\n?/g, '')
+                    .replace(/\n?```\s*$/g, '')
+                    .trim();
+            }
+        }
         
         console.log('📦 Received response from API:');
         console.log('  - Result type:', typeof generatedCode);
