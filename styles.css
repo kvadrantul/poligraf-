@@ -338,6 +338,13 @@ body {
     flex-shrink: 0;
 }
 
+/* Активное состояние для кнопки "Изображение" (тоггл) */
+.image-generation-button.active {
+    background: rgba(139, 92, 246, 0.2);
+    border-color: rgba(139, 92, 246, 0.5);
+    color: #c4b5fd;
+}
+
 .input-wrapper {
     position: relative;
     display: flex;
