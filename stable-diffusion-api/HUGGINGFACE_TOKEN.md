@@ -81,3 +81,4 @@ python main.py
 - SD 3.5 Medium: https://huggingface.co/stabilityai/stable-diffusion-3-medium-diffusers
 - Документация: https://huggingface.co/docs/hub/security-tokens
 
+

@@ -36,11 +36,12 @@ executor = ThreadPoolExecutor(max_workers=1)
 
 # Модель по умолчанию
 # Варианты:
-# - "ByteDance/SDXL-Lightning" - очень быстрая (1-4 шага), коммерческое использование разрешено (CreativeML Open RAIL++-M)
-# - "stabilityai/sdxl-turbo" - быстрая (1-4 шага), коммерческое использование разрешено (CreativeML Open RAIL++-M)
-# - "runwayml/stable-diffusion-v1-5" - стандартная (20-50 шагов), коммерческое использование разрешено (CreativeML Open RAIL-M)
+# - "SimianLuo/LCM_Dreamshaper_v7" - ОЧЕНЬ БЫСТРАЯ SD 1.5 с LCM (1-2 шага!), ~4GB, коммерческое использование разрешено ⚡⚡⚡
+# - "ByteDance/SDXL-Lightning" - очень быстрая SDXL (1-4 шага), ~10GB, коммерческое использование разрешено
+# - "stabilityai/sdxl-turbo" - быстрая SDXL (1-4 шага), ~10GB, коммерческое использование разрешено
+# - "runwayml/stable-diffusion-v1-5" - стандартная (20-50 шагов), ~4GB, коммерческое использование разрешено
 # - "stabilityai/stable-diffusion-3-medium-diffusers" - требует HF token, НЕКОММЕРЧЕСКОЕ использование
-MODEL_ID = os.getenv("SD_MODEL_ID", "stabilityai/sdxl-turbo")  # По умолчанию: быстрая модель с коммерческой лицензией
+MODEL_ID = os.getenv("SD_MODEL_ID", "SimianLuo/LCM_Dreamshaper_v7")  # По умолчанию: САМАЯ БЫСТРАЯ модель для CPU (1-2 шага!)
 HF_TOKEN = os.getenv("HUGGINGFACE_TOKEN", "")  # Для gated моделей (не используется для Lightning)
 
 
@@ -161,8 +162,14 @@ async def generate_image(request: GenerateRequest):
         # Генерируем изображение в отдельном потоке, чтобы не блокировать event loop
         def generate():
             # Округляем размеры до кратных 8 (требование Stable Diffusion)
-            width = (request.width // 8) * 8
-            height = (request.height // 8) * 8
+            width = ((request.width + 7) // 8) * 8
+            height = ((request.height + 7) // 8) * 8
+            
+            # Для SD 1.5 (не SDXL) ограничиваем максимальный размер 768x768 для скорости
+            if "sdxl" not in MODEL_ID.lower() and "stable-diffusion-3" not in MODEL_ID.lower():
+                width = min(width, 768)
+                height = min(height, 768)
+            
             if width != request.width or height != request.height:
                 print(f"⚠️ Adjusted image size from {request.width}x{request.height} to {width}x{height} (must be multiple of 8)")
             
@@ -182,10 +189,19 @@ async def generate_image(request: GenerateRequest):
 
                 # Генерируем с референсом
                 print("📷 Using reference image (image-to-image mode)")
+                
+                # Для LCM моделей используем меньше шагов
+                steps = request.num_inference_steps
+                guidance = request.guidance_scale
+                if "lcm" in MODEL_ID.lower():
+                    steps = min(steps, 2)
+                    guidance = 1.0
+                    print(f"⚡⚡⚡ LCM mode (FASTEST!): {steps} steps, guidance={guidance}")
+                
                 return pipe(
                     prompt=request.prompt,
-                    num_inference_steps=request.num_inference_steps,
-                    guidance_scale=request.guidance_scale,
+                    num_inference_steps=steps,
+                    guidance_scale=guidance,
                     width=width,
                     height=height,
                 )
@@ -193,11 +209,16 @@ async def generate_image(request: GenerateRequest):
                 # Text-to-image режим
                 print("📝 Text-to-image mode")
                 
-                # Для Turbo/Lightning моделей используем меньше шагов и guidance_scale
+                # Для Turbo/Lightning/LCM моделей используем меньше шагов и guidance_scale
                 steps = request.num_inference_steps
                 guidance = request.guidance_scale
                 
-                if "turbo" in MODEL_ID.lower():
+                if "lcm" in MODEL_ID.lower():
+                    # LCM модели работают лучше с 1-2 шагами (самые быстрые!)
+                    steps = min(steps, 2)
+                    guidance = 1.0  # LCM использует низкий guidance
+                    print(f"⚡⚡⚡ LCM mode (FASTEST!): {steps} steps, guidance={guidance}")
+                elif "turbo" in MODEL_ID.lower():
                     # Turbo работает лучше с 1-4 шагами
                     steps = min(steps, 4)
                     guidance = 0.0  # Turbo не использует guidance

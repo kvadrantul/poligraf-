@@ -11,3 +11,4 @@ const API_GENERATE = `${API_BASE}/api/generate`;
 // на:
 // <script src="app.local.js"></script>
 
+

@@ -66,13 +66,13 @@ func generateImageWithStableDiffusion(apiUrl, prompt, referenceImage string) (st
 	apiEndpoint := fmt.Sprintf("%s/generate", apiUrl)
 
 	// Формируем запрос
-	// Для SDXL Turbo используем 4 шага (работает намного быстрее)
+	// Для LCM модели используем 2 шага (самая быстрая генерация!)
 	requestBody := map[string]interface{}{
 		"prompt":              prompt,
-		"num_inference_steps": 4,   // Turbo работает с 1-4 шагами (вместо 20-50)
-		"guidance_scale":      1.0, // Turbo не использует guidance
-		"width":               1024,
-		"height":              1024,
+		"num_inference_steps": 2,   // LCM работает с 1-2 шагами (самая быстрая модель!)
+		"guidance_scale":      1.0, // LCM использует низкий guidance
+		"width":               512,  // SD 1.5 лучше работает с 512x512 (быстрее чем 1024x1024)
+		"height":              512,
 	}
 
 	// Если есть референс, добавляем его

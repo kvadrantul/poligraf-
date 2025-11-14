@@ -85,3 +85,4 @@ curl -X POST http://localhost:7861/generate \
 - Модель кешируется в `~/.cache/huggingface`
 - Для GPU требуется установленный NVIDIA Docker runtime
 
+

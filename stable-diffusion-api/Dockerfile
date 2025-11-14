@@ -22,3 +22,4 @@ EXPOSE 7861
 # Запускаем сервер
 CMD ["python", "main.py"]
 
+
