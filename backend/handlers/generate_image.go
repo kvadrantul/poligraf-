@@ -97,14 +97,18 @@ func generateImageWithStableDiffusion(apiUrl, prompt, referenceImage string) (st
 		Timeout: 900 * time.Second, // 15 минут для CPU генерации
 	}
 
+	log.Println("📤 Sending request to Stable Diffusion API...")
 	resp, err := client.Do(req)
 	if err != nil {
+		log.Printf("❌ Request failed: %v", err)
 		return "", fmt.Errorf("failed to send request to Stable Diffusion API: %w", err)
 	}
 	defer resp.Body.Close()
 
+	log.Printf("📥 Received response: status %d", resp.StatusCode)
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
+		log.Printf("❌ Error response: %s", string(body))
 		return "", fmt.Errorf("Stable Diffusion API error: %d - %s", resp.StatusCode, string(body))
 	}
 

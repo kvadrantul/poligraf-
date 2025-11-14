@@ -118,6 +118,12 @@ async def generate_image(request: GenerateRequest):
 
         # Генерируем изображение в отдельном потоке, чтобы не блокировать event loop
         def generate():
+            # Округляем размеры до кратных 8 (требование Stable Diffusion)
+            width = (request.width // 8) * 8
+            height = (request.height // 8) * 8
+            if width != request.width or height != request.height:
+                print(f"⚠️ Adjusted image size from {request.width}x{request.height} to {width}x{height} (must be multiple of 8)")
+            
             # Подготовка входных данных
             if request.reference_image:
                 # Image-to-image режим
@@ -138,8 +144,8 @@ async def generate_image(request: GenerateRequest):
                     prompt=request.prompt,
                     num_inference_steps=request.num_inference_steps,
                     guidance_scale=request.guidance_scale,
-                    width=request.width,
-                    height=request.height,
+                    width=width,
+                    height=height,
                 )
             else:
                 # Text-to-image режим
@@ -148,8 +154,8 @@ async def generate_image(request: GenerateRequest):
                     prompt=request.prompt,
                     num_inference_steps=request.num_inference_steps,
                     guidance_scale=request.guidance_scale,
-                    width=request.width,
-                    height=request.height,
+                    width=width,
+                    height=height,
                 )
         
         # Запускаем генерацию в отдельном потоке через asyncio (не блокирует event loop)
