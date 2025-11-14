@@ -167,37 +167,37 @@ func callV0(apiKey, userPrompt, image string) (string, error) {
 	// Проверяем, есть ли системный промпт в начале userPrompt
 	// Если есть, выделяем его в отдельное system сообщение для лучшей работы модели
 	messages := []map[string]interface{}{}
-	
+
 	// Проверяем наличие системного промпта (начинается с "Ты веб дизайнер")
 	if strings.HasPrefix(userPrompt, "Ты веб дизайнер") {
 		// Ищем конец системного промпта
 		// Системный промпт заканчивается перед "возьми за основу" или перед пользовательским промптом
 		systemPromptEnd := -1
-		
+
 		// Ищем различные маркеры конца системного промпта
 		markers := []string{
 			"\n\nвозьми за основу",
 			"\n\nи сделай",
 			"\n\nВерни ТОЛЬКО",
 		}
-		
+
 		for _, marker := range markers {
 			if idx := strings.Index(userPrompt, marker); idx > 0 {
 				systemPromptEnd = idx
 				break
 			}
 		}
-		
+
 		if systemPromptEnd > 0 {
 			systemPrompt := strings.TrimSpace(userPrompt[:systemPromptEnd])
 			userPromptOnly := strings.TrimSpace(userPrompt[systemPromptEnd+2:])
-			
+
 			// Добавляем system сообщение
 			messages = append(messages, map[string]interface{}{
 				"role":    "system",
 				"content": systemPrompt,
 			})
-			
+
 			// Обновляем userContent с только user промптом
 			if image != "" {
 				userContent = []map[string]interface{}{
@@ -215,13 +215,13 @@ func callV0(apiKey, userPrompt, image string) (string, error) {
 			} else {
 				userContent = userPromptOnly
 			}
-			
+
 			log.Println("✅ System prompt extracted and sent as separate message")
 			log.Printf("System prompt length: %d", len(systemPrompt))
 			log.Printf("User prompt length: %d", len(userPromptOnly))
 		}
 	}
-	
+
 	// Если системный промпт не был выделен, используем весь userPrompt как есть
 	if len(messages) == 0 {
 		messages = append(messages, map[string]interface{}{
@@ -235,7 +235,7 @@ func callV0(apiKey, userPrompt, image string) (string, error) {
 			"content": userContent,
 		})
 	}
-	
+
 	requestBody := map[string]interface{}{
 		"model":    "v0-1.5-md",
 		"messages": messages,

@@ -48,6 +48,7 @@ func setupRoutes(r *gin.Engine) {
 	api := r.Group("/api")
 	{
 		api.POST("/generate", handlers.HandleGenerate)
+		api.POST("/generate-image", handlers.HandleGenerateImage)
 		// В будущем можно добавить другие endpoints
 		// api.POST("/v0/create-project", handlers.HandleCreateProject)
 		// api.POST("/v0/iterate", handlers.HandleIterate)

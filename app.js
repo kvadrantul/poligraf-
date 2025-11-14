@@ -36,6 +36,7 @@ const port = window.location.port;
 const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '';
 const API_BASE = isLocalhost ? 'http://localhost:8080' : 'https://poligraf-black.vercel.app';
 const API_GENERATE = `${API_BASE}/api/generate`; // Model API - быстрая генерация
+const API_GENERATE_IMAGE = `${API_BASE}/api/generate-image`; // Image generation API
 
 console.log('🌍 Environment Detection:');
 console.log('  - hostname:', hostname);
@@ -586,7 +587,7 @@ function loadSavedPromptAndMarkup() {
 }
 
 // Системный промпт для полиграфии (всегда включен)
-const SYSTEM_PROMPT = `Ты веб дизайнер элитной полиграфии. Ты верстаешь визитки, журналы, обложки, открытки, приглашения на праздники и так далее в виде сайта. Ты создаёшь дорогой стиль. Ты максимально точно используешь референсы изображений которые тебе дают. Ты максимально точно воспроизводишь графику и расположение рисунков если они есть в прикрепленном референсе. Ты идеально работаешь со шрифтами, текстом и превосходно располагаешь тексты и графику на верстке. Ты ничего не упрощаешь из того что тебе дают. Ты делаешь максимально глубокую и качественную графику и умеешь рисовать сложные картинки.
+const SYSTEM_PROMPT = `Ты веб дизайнер элитной полиграфии. Ты верстаешь визитки, журналы, обложки, открытки, приглашения на праздники и так далее в виде сайта. Ты создаёшь дорогой стиль. Ты идеально работаешь со шрифтами, текстом и превосходно располагаешь тексты и графику на верстке. Ты ничего не упрощаешь из того что тебе дают. Ты делаешь максимально глубокую и качественную графику.
 
 ВАЖНО: ВСЕГДА возвращай валидный React/TSX код компонента. Верни ТОЛЬКО код, без текстовых объяснений. Код должен начинаться с export default function или const Component = и содержать JSX разметку.`;
 
@@ -664,6 +665,41 @@ function hideImagePreview() {
     }
 }
 
+// Функция для генерации изображения
+async function generateImage(prompt, referenceImage) {
+    let imagePrompt;
+    
+    if (referenceImage) {
+        // Если есть референс: "возьми с этого референса графику и нарисуй отдельно её и пришли одним изображением"
+        imagePrompt = `Возьми с этого референса графику и нарисуй отдельно её и пришли одним изображением. Референс показывает: ${prompt}`;
+        console.log('🎨 Generating image from reference');
+    } else {
+        // Если нет референса: "создай графику для следующего запроса: [промпт]"
+        imagePrompt = `Создай графику для следующего запроса: ${prompt}`;
+        console.log('🎨 Generating new image for prompt');
+    }
+    
+    const response = await fetch(API_GENERATE_IMAGE, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            prompt: imagePrompt,
+            referenceImage: referenceImage || null
+        })
+    });
+    
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Ошибка генерации изображения: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log('✅ Image generated successfully');
+    return data.imageUrl;
+}
+
 // Функция для отправки запроса к v0.dev Model API
 async function sendToV0(prompt) {
     let loadingOverlay = null;
@@ -690,7 +726,12 @@ async function sendToV0(prompt) {
             console.error('resultArea not found for loading overlay');
         }
 
-        // Формируем промпт пользователя
+        // ЭТАП 1: Генерируем изображение
+        console.log('🎨 Step 1: Generating image...');
+        const generatedImage = await generateImage(prompt, uploadedImageBase64);
+        console.log('✅ Image generated, proceeding to v0.dev');
+
+        // ЭТАП 2: Формируем промпт для v0.dev с сгенерированным изображением
         const htmlKey = `poligraf-last-html-${userId}`;
         const lastHTML = localStorage.getItem(htmlKey);
         
@@ -713,14 +754,14 @@ async function sendToV0(prompt) {
                     ? lastHTML.substring(0, maxHtmlLength) + '\n<!-- ... (HTML truncated) -->'
                     : lastHTML;
                 
-                // Формируем промпт: системный промпт (если есть) + "возьми за основу вот этот HTML и сделай [промпт пользователя]"
+                // Формируем промпт: "возьми за основу вот этот HTML и расположи на фоне изображение которое я прикрепил"
                 userPrompt += `возьми за основу вот этот HTML:
 
 \`\`\`html
 ${truncatedHTML}
 \`\`\`
 
-и сделай ${prompt}`;
+расположи на фоне изображение которое я прикрепил и сделай ${prompt}`;
                 
                 console.log('✅ Using saved HTML as reference');
                 console.log('  - HTML length:', truncatedHTML.length);
@@ -728,17 +769,12 @@ ${truncatedHTML}
             } else {
                 console.warn('⚠️ Saved HTML appears invalid, ignoring it');
                 // Если HTML невалидный, просто добавляем промпт пользователя
-                userPrompt += prompt;
+                userPrompt += `расположи на фоне изображение которое я прикрепил и сделай ${prompt}`;
             }
         } else {
             console.log('📝 New generation (no saved markup)');
             // Если нет HTML референса, просто добавляем промпт пользователя
-            userPrompt += prompt;
-        }
-        
-        // Изображение просто прикрепляется без упоминания в тексте промпта
-        if (uploadedImageBase64) {
-            console.log('✅ Image will be attached to request (no text mention)');
+            userPrompt += `расположи на фоне изображение которое я прикрепил и сделай ${prompt}`;
         }
         
         // Инструкция возвращать React код уже включена в SYSTEM_PROMPT
@@ -752,12 +788,15 @@ ${truncatedHTML}
         console.log('  - Preview (first 500 chars):', userPrompt.substring(0, 500));
         console.log('  - Has system prompt:', userPrompt.includes('веб дизайнер элитной полиграфии'));
         console.log('  - Has HTML reference:', userPrompt.includes('возьми за основу'));
+        console.log('  - Has image instruction:', userPrompt.includes('расположи на фоне изображение'));
         console.log('  - Has user prompt:', userPrompt.includes(prompt));
         console.log('  - Has React instruction:', userPrompt.includes('React/TSX'));
 
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 90000); // Увеличено до 90 секунд
 
+        // ЭТАП 2: Отправляем запрос в v0.dev с сгенерированным изображением
+        console.log('🚀 Step 2: Sending request to v0.dev with generated image...');
         const response = await fetch(API_GENERATE, {
             method: 'POST',
             headers: {
@@ -765,8 +804,8 @@ ${truncatedHTML}
             },
             body: JSON.stringify({ 
                 userPrompt: userPrompt,
-                image: uploadedImageBase64 || null,
-                provider: currentProvider // Передаем выбранный провайдер
+                image: generatedImage, // Всегда передаем сгенерированное изображение
+                provider: currentProvider
             }),
             signal: controller.signal
         });
