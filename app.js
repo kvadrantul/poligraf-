@@ -784,6 +784,7 @@ function createProgressIndicator(container) {
     const step4 = createProgressStep('Полиграфия готова', 'check');
     
     // Собираем структуру - все элементы добавляются, но скрыты
+    // Порядок: step1 -> line1 -> step2 -> imageCard -> line2 -> step3 -> line4 -> step4
     progressContainer.appendChild(step1);
     progressContainer.appendChild(line1);
     progressContainer.appendChild(step2);
@@ -792,6 +793,12 @@ function createProgressIndicator(container) {
     progressContainer.appendChild(step3);
     progressContainer.appendChild(line4);
     progressContainer.appendChild(step4);
+    
+    // Скрываем все линии изначально
+    line1.style.display = 'none';
+    line2.style.display = 'none';
+    line3.style.display = 'none';
+    line4.style.display = 'none';
     
     // Показываем только первый этап сразу
     step1.classList.add('show', 'active');
@@ -824,6 +831,18 @@ function createProgressIndicator(container) {
                 } else if (status === 'completed') {
                     step.classList.add('completed');
                     step.classList.remove('active'); // Убираем пульсацию при завершении
+                    
+                    // Показываем линию после завершенного этапа
+                    // step1 -> line1, step2 -> line2 (но line2 после imageCard), step3 -> line4
+                    if (stepNumber === 1 && line1) {
+                        line1.style.display = 'block';
+                        line1.classList.add('show');
+                    } else if (stepNumber === 2 && line2) {
+                        // line2 показывается после imageCard, не здесь
+                    } else if (stepNumber === 3 && line4) {
+                        line4.style.display = 'block';
+                        line4.classList.add('show');
+                    }
                 }
             }
         },
@@ -834,20 +853,37 @@ function createProgressIndicator(container) {
                 console.log('  - URL type:', typeof imageUrl);
                 console.log('  - URL length:', imageUrl?.length || 0);
                 console.log('  - URL preview:', imageUrl?.substring(0, 100) || 'N/A');
+                console.log('  - Starts with data:image:', imageUrl?.startsWith('data:image'));
                 
                 // Проверяем, что это data URL (изображение), а не код
                 if (typeof imageUrl === 'string' && imageUrl.startsWith('data:image')) {
+                    // Проверяем, что изображение действительно загружается
+                    img.onload = () => {
+                        console.log('✅ Image loaded successfully in progress card');
+                        imageCard.classList.add('show');
+                        // Показываем линию после карточки изображения
+                        if (line2) {
+                            line2.style.display = 'block';
+                            line2.classList.add('show');
+                        }
+                    };
+                    img.onerror = () => {
+                        console.error('❌ Failed to load image in progress card');
+                        console.error('  - Image URL preview:', imageUrl.substring(0, 200));
+                    };
                     img.src = imageUrl;
                     img.style.display = 'block';
-                    imageCard.classList.add('show');
-                    console.log('✅ Image displayed in progress card');
+                    console.log('📷 Image src set, waiting for load...');
                 } else {
                     console.error('❌ Invalid image URL - not a data:image URL');
-                    console.error('  - Received:', imageUrl?.substring(0, 200) || 'N/A');
+                    console.error('  - Received type:', typeof imageUrl);
+                    console.error('  - Received preview:', imageUrl?.substring(0, 200) || 'N/A');
                     // Не показываем карточку, если это не изображение
                 }
             } else {
                 console.warn('⚠️ Image element not found or imageUrl is empty');
+                console.warn('  - img exists:', !!img);
+                console.warn('  - imageUrl exists:', !!imageUrl);
             }
         },
         remove: () => {
@@ -931,20 +967,27 @@ async function sendToV0(prompt) {
                     progressIndicator.updateStep(2, 'active');
                     if (generatedImage && generatedImage.startsWith('data:image')) {
                         progressIndicator.showImage(generatedImage);
+                        setTimeout(() => {
+                            progressIndicator.updateStep(2, 'completed');
+                            // Переходим к следующему этапу
+                            setTimeout(() => {
+                                if (progressIndicator) {
+                                    progressIndicator.updateStep(3, 'active');
+                                }
+                            }, 500);
+                        }, 500);
                     } else {
                         console.error('❌ Generated image is not a valid data:image URL!');
                         console.error('  - Type:', typeof generatedImage);
                         console.error('  - Value preview:', generatedImage?.substring(0, 200) || 'N/A');
-                    }
-                    setTimeout(() => {
+                        // Продолжаем без изображения
                         progressIndicator.updateStep(2, 'completed');
-                        // Переходим к следующему этапу
                         setTimeout(() => {
                             if (progressIndicator) {
                                 progressIndicator.updateStep(3, 'active');
                             }
                         }, 500);
-                    }, 500);
+                    }
                 }, 300);
             }
         } else {
