@@ -714,15 +714,61 @@ function hideImagePreview() {
 async function generateImage(prompt, referenceImage) {
     let imagePrompt;
     
-    if (referenceImage) {
-        // Если есть референс: "возьми с этого референса графику и нарисуй отдельно её и пришли одним изображением"
-        imagePrompt = `Возьми с этого референса графику и нарисуй отдельно её и пришли одним изображением. Референс показывает: ${prompt}`;
-        console.log('🎨 Generating image from reference');
+    // Переводим промпт на английский для лучшей работы Stable Diffusion
+    // Простая эвристика: если промпт на русском, создаем английский эквивалент
+    let englishPrompt = prompt;
+    
+    // Простые переводы ключевых слов (можно улучшить)
+    const translations = {
+        'баннер': 'banner',
+        'постер': 'poster',
+        'логотип': 'logo',
+        'иконка': 'icon',
+        'графика': 'graphics',
+        'иллюстрация': 'illustration',
+        'дизайн': 'design',
+        'фон': 'background',
+        'красивый': 'beautiful',
+        'современный': 'modern',
+        'минималистичный': 'minimalist',
+        'яркий': 'bright',
+        'темный': 'dark'
+    };
+    
+    // Если промпт содержит кириллицу, пытаемся перевести
+    const hasCyrillic = /[а-яё]/i.test(prompt);
+    if (hasCyrillic) {
+        // Простая замена ключевых слов
+        englishPrompt = prompt;
+        for (const [ru, en] of Object.entries(translations)) {
+            const regex = new RegExp(ru, 'gi');
+            englishPrompt = englishPrompt.replace(regex, en);
+        }
+        // Если осталась кириллица, добавляем общее описание
+        if (/[а-яё]/i.test(englishPrompt)) {
+            englishPrompt = `graphic design, ${englishPrompt}, professional, high quality`;
+        }
     } else {
-        // Если нет референса: "создай графику для следующего запроса: [промпт]"
-        imagePrompt = `Создай графику для следующего запроса: ${prompt}`;
-        console.log('🎨 Generating new image for prompt');
+        // Если уже на английском, просто используем как есть
+        englishPrompt = prompt;
     }
+    
+    if (referenceImage) {
+        // Если есть референс: используем image-to-image с улучшенным промптом
+        imagePrompt = `extract graphics from reference image, ${englishPrompt}, clean background, professional, high quality`;
+        console.log('🎨 Generating image from reference');
+        console.log('  - Original prompt:', prompt);
+        console.log('  - Translated prompt:', imagePrompt);
+    } else {
+        // Если нет референса: создаем конкретный промпт для графики
+        imagePrompt = `${englishPrompt}, graphic design, professional, high quality, clean, modern, minimalist`;
+        console.log('🎨 Generating new image for prompt');
+        console.log('  - Original prompt:', prompt);
+        console.log('  - Translated prompt:', imagePrompt);
+    }
+    
+    // Негативный промпт для улучшения качества
+    const negativePrompt = "blurry, low quality, distorted, black image, dark, noise, text, watermark, signature, ugly, bad anatomy";
     
     const response = await fetch(API_GENERATE_IMAGE, {
         method: 'POST',
@@ -731,7 +777,8 @@ async function generateImage(prompt, referenceImage) {
         },
         body: JSON.stringify({
             prompt: imagePrompt,
-            referenceImage: referenceImage || null
+            referenceImage: referenceImage || null,
+            negativePrompt: negativePrompt
         })
     });
     

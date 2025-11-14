@@ -46,7 +46,7 @@ func HandleGenerateImage(c *gin.Context) {
 	log.Printf("🔗 Stable Diffusion API URL: %s", sdApiUrl)
 
 	// Генерируем изображение через локальный Stable Diffusion API
-	imageBase64, err := generateImageWithStableDiffusion(sdApiUrl, req.Prompt, req.ReferenceImage)
+	imageBase64, err := generateImageWithStableDiffusion(sdApiUrl, req.Prompt, req.ReferenceImage, req.NegativePrompt)
 	if err != nil {
 		log.Printf("❌ Error generating image: %v", err)
 		c.JSON(http.StatusInternalServerError, GenerateImageResponse{
@@ -62,18 +62,23 @@ func HandleGenerateImage(c *gin.Context) {
 }
 
 // generateImageWithStableDiffusion генерирует изображение через локальный Stable Diffusion API
-func generateImageWithStableDiffusion(apiUrl, prompt, referenceImage string) (string, error) {
+func generateImageWithStableDiffusion(apiUrl, prompt, referenceImage, negativePrompt string) (string, error) {
 	apiEndpoint := fmt.Sprintf("%s/generate", apiUrl)
 
 	// Формируем запрос
-	// Для SD 1.4 используем минимальные параметры для максимальной скорости
-	requestBody := map[string]interface{}{
-		"prompt":              prompt,
-		"num_inference_steps": 10,  // Минимум для базового качества SD 1.4
-		"guidance_scale":      7.5, // Стандартный guidance для SD 1.4
-		"width":               512, // Минимальный размер для скорости
-		"height":              512,
-	}
+		// Для SD 1.4 используем оптимальные параметры
+		requestBody := map[string]interface{}{
+			"prompt":              prompt,
+			"num_inference_steps": 10,  // SD 1.4 работает лучше с 10 шагами
+			"guidance_scale":      7.5, // Стандартный guidance для SD 1.4
+			"width":               512, // Минимальный размер для скорости
+			"height":              512,
+		}
+		
+		// Добавляем негативный промпт если указан
+		if negativePrompt != "" {
+			requestBody["negative_prompt"] = negativePrompt
+		}
 
 	// Если есть референс, добавляем его
 	if referenceImage != "" {
