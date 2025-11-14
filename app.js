@@ -742,6 +742,27 @@ async function generateImage(prompt, referenceImage) {
     
     const data = await response.json();
     console.log('✅ Image generated successfully');
+    console.log('📷 Image data received:', {
+        hasImageUrl: !!data.imageUrl,
+        imageUrlType: typeof data.imageUrl,
+        imageUrlLength: data.imageUrl?.length || 0,
+        startsWithDataImage: data.imageUrl?.startsWith('data:image'),
+        preview: data.imageUrl?.substring(0, 100) || 'N/A'
+    });
+    
+    // Отладочная проверка: сохраняем изображение в localStorage для просмотра
+    if (data.imageUrl && data.imageUrl.startsWith('data:image')) {
+        try {
+            localStorage.setItem('poligraf-debug-generated-image', data.imageUrl);
+            console.log('💾 Image saved to localStorage for debugging (key: poligraf-debug-generated-image)');
+        } catch (e) {
+            console.warn('⚠️ Could not save image to localStorage:', e);
+        }
+    } else {
+        console.error('❌ Invalid image URL received from API');
+        console.error('  - Full response:', JSON.stringify(data, null, 2));
+    }
+    
     return data.imageUrl;
 }
 
@@ -784,12 +805,13 @@ function createProgressIndicator(container) {
     const step4 = createProgressStep('Полиграфия готова', 'check');
     
     // Собираем структуру - все элементы добавляются, но скрыты
-    // Порядок: step1 -> line1 -> step2 -> imageCard -> line2 -> step3 -> line4 -> step4
+    // Порядок: step1 -> line1 -> step2 -> line2 -> imageCard -> line3 -> step3 -> line4 -> step4
     progressContainer.appendChild(step1);
     progressContainer.appendChild(line1);
     progressContainer.appendChild(step2);
+    progressContainer.appendChild(line2); // Линия перед карточкой изображения
     progressContainer.appendChild(imageCard);
-    progressContainer.appendChild(line2);
+    progressContainer.appendChild(line3); // Линия после карточки изображения
     progressContainer.appendChild(step3);
     progressContainer.appendChild(line4);
     progressContainer.appendChild(step4);
@@ -800,13 +822,13 @@ function createProgressIndicator(container) {
     line3.style.display = 'none';
     line4.style.display = 'none';
     
+    // Сохраняем ссылки на линии для возможности их скрытия
+    const lines = [line1, line2, line3, line4];
+    
     // Показываем только первый этап сразу
     step1.classList.add('show', 'active');
     
     container.appendChild(progressContainer);
-    
-    // Сохраняем ссылки на линии для возможности их скрытия
-    const lines = [line1, line2, line3, line4];
     
     return {
         container: progressContainer,
@@ -833,12 +855,14 @@ function createProgressIndicator(container) {
                     step.classList.remove('active'); // Убираем пульсацию при завершении
                     
                     // Показываем линию после завершенного этапа
-                    // step1 -> line1, step2 -> line2 (но line2 после imageCard), step3 -> line4
+                    // step1 -> line1, step2 -> line2 (перед imageCard), step3 -> line4
                     if (stepNumber === 1 && line1) {
                         line1.style.display = 'block';
                         line1.classList.add('show');
                     } else if (stepNumber === 2 && line2) {
-                        // line2 показывается после imageCard, не здесь
+                        // line2 показывается после step2, перед imageCard
+                        line2.style.display = 'block';
+                        line2.classList.add('show');
                     } else if (stepNumber === 3 && line4) {
                         line4.style.display = 'block';
                         line4.classList.add('show');
@@ -862,9 +886,9 @@ function createProgressIndicator(container) {
                         console.log('✅ Image loaded successfully in progress card');
                         imageCard.classList.add('show');
                         // Показываем линию после карточки изображения
-                        if (line2) {
-                            line2.style.display = 'block';
-                            line2.classList.add('show');
+                        if (line3) {
+                            line3.style.display = 'block';
+                            line3.classList.add('show');
                         }
                     };
                     img.onerror = () => {

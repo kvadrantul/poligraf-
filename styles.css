@@ -205,6 +205,7 @@ body {
     transform: translateY(10px) scale(0.9);
     transition: opacity 0.4s ease, transform 0.4s ease;
     position: relative;
+    justify-content: flex-start;
 }
 
 .progress-step.show {
@@ -288,14 +289,12 @@ body {
     width: 3px;
     height: 16px;
     background: rgba(255, 255, 255, 0.1);
-    margin: 0 auto;
     position: relative;
     overflow: hidden;
     opacity: 0;
     transition: opacity 0.3s ease;
-    align-self: center;
-    margin-left: 0;
-    margin-right: 0;
+    margin-left: 20px; /* Выравниваем по центру иконки (40px / 2 - 3px / 2 = 18.5px, округляем до 20px) */
+    align-self: flex-start;
 }
 
 .progress-line.show {
@@ -336,12 +335,13 @@ body {
     overflow: hidden;
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    margin: 8px auto;
+    margin: 8px 0 8px 0;
     opacity: 0;
     transform: scale(0.9);
     transition: opacity 0.5s ease, transform 0.5s ease;
     position: relative;
-    align-self: center;
+    align-self: flex-start;
+    margin-left: 0;
 }
 
 .progress-image-card.show {
