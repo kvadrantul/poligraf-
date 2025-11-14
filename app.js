@@ -232,9 +232,12 @@ function renderReactComponent(codeText, container) {
                 // Решение: находим все bg-[url(...)] и экранируем кавычки внутри URL
                 cleanCode = cleanCode.replace(/bg-\[url\((['"])(.*?)\1\)\]/g, (match, quote, url) => {
                     // Заменяем кавычки внутри URL на URL-encoded версии
-                    // Но не трогаем уже экранированные символы (%22, %27)
-                    const fixedUrl = url.replace(/(?<!%)(?<!%2)(?<!%22)"/g, '%22')
-                                        .replace(/(?<!%)(?<!%2)(?<!%27)'/g, '%27');
+                    // Используем простую замену, т.к. lookbehind может не работать во всех браузерах
+                    let fixedUrl = url;
+                    // Заменяем двойные кавычки, которые не являются частью %22
+                    fixedUrl = fixedUrl.replace(/([^%]|^)"/g, '$1%22');
+                    // Заменяем одинарные кавычки, которые не являются частью %27
+                    fixedUrl = fixedUrl.replace(/([^%]|^)'/g, '$1%27');
                     return `bg-[url(${quote}${fixedUrl}${quote})]`;
                 });
                 
