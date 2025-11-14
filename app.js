@@ -300,8 +300,10 @@ function renderReactComponent(codeText, container) {
                 let lastIndex = 0;
                 let fixedCode = '';
                 let match;
+                let hasReplacements = false;
                 
                 while ((match = backgroundImagePattern.exec(iframeCode)) !== null) {
+                    hasReplacements = true;
                     // Добавляем текст до совпадения
                     fixedCode += iframeCode.substring(lastIndex, match.index);
                     
@@ -311,7 +313,6 @@ function renderReactComponent(codeText, container) {
                     
                     // Ищем, где заканчивается этот template literal (ищем следующий ` или конец строки)
                     let urlEnd = matchEnd;
-                    let foundClose = false;
                     
                     // Ищем закрывающие символы: )` или просто ` на той же строке
                     const remainingCode = iframeCode.substring(matchEnd);
@@ -319,7 +320,6 @@ function renderReactComponent(codeText, container) {
                     
                     if (closeMatch) {
                         urlEnd = matchEnd + closeMatch.index;
-                        foundClose = true;
                     } else {
                         // Если не нашли закрывающие символы, ищем конец строки или следующее свойство
                         const nextPropMatch = remainingCode.match(/,\s*\w+:|}\s*\)|}\s*}/);
@@ -346,12 +346,10 @@ function renderReactComponent(codeText, container) {
                 }
                 
                 // Добавляем оставшийся код
-                if (lastIndex < iframeCode.length) {
-                    fixedCode += iframeCode.substring(lastIndex);
-                }
-                
-                // Если были замены, используем исправленный код
-                if (fixedCode) {
+                if (hasReplacements) {
+                    if (lastIndex < iframeCode.length) {
+                        fixedCode += iframeCode.substring(lastIndex);
+                    }
                     iframeCode = fixedCode;
                 }
                 
