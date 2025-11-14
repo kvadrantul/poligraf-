@@ -275,6 +275,26 @@ function renderReactComponent(codeText, container) {
                     return `bg-[url(${quote}${fixedUrl}${quote})]`;
                 });
                 
+                // ИСПРАВЛЕНИЕ: Экранируем проблемные кавычки в backgroundImage внутри style объектов
+                // Проблема: style={{backgroundImage: `url('data:image/jpeg;base64,...')`}} содержит очень длинную base64 строку
+                // которая может обрываться или содержать неэкранированные кавычки, ломая парсинг Babel
+                // Решение: находим все backgroundImage с url() и заменяем одинарные кавычки на двойные внутри template literal
+                // или экранируем их, если они используются внутри одинарных кавычек
+                iframeCode = iframeCode.replace(/backgroundImage:\s*`url\((['"])([^`]*?)\1\)`/g, (match, quote, url) => {
+                    // Если внутри template literal используются одинарные кавычки, заменяем их на двойные
+                    // или экранируем, чтобы избежать конфликта с template literal
+                    let fixedUrl = url;
+                    // Если quote одинарная, заменяем все одинарные кавычки внутри URL на двойные
+                    if (quote === "'") {
+                        fixedUrl = fixedUrl.replace(/'/g, '"');
+                        return `backgroundImage: \`url("${fixedUrl}")\``;
+                    } else {
+                        // Если quote двойная, заменяем все двойные кавычки внутри URL на одинарные
+                        fixedUrl = fixedUrl.replace(/"/g, "'");
+                        return `backgroundImage: \`url('${fixedUrl}')\``;
+                    }
+                });
+                
                 let componentName = 'Component';
                 const exportMatch = iframeCode.match(/export\s+default\s+function\s+(\w+)/);
                 if (exportMatch) {
