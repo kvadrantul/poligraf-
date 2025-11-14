@@ -10,6 +10,7 @@ const resultContent = document.getElementById('resultContent');
 const commentInput = document.getElementById('commentInput');
 const sendButton = document.getElementById('sendButton');
 const newButton = document.getElementById('newButton');
+const imageGenerationButton = document.getElementById('imageGenerationButton');
 // Кнопки полиграфии и провайдера удалены - они всегда включены
 const imageUploadButton = document.getElementById('imageUploadButton');
 const imageInput = document.getElementById('imageInput');
@@ -975,6 +976,17 @@ if (sendButton) {
     console.error('Cannot add event listener: sendButton is null');
 }
 
+
+// Обработчик кнопки "Изображение"
+if (imageGenerationButton) {
+    imageGenerationButton.addEventListener('click', () => {
+        // TODO: Добавить логику переключения генерации изображений
+        console.log('🖼️ Image generation button clicked');
+        tg.HapticFeedback.impactOccurred('light');
+    });
+} else {
+    console.error('Cannot add event listener: imageGenerationButton is null');
+}
 
 // Обработчик кнопки "Новый"
 if (newButton) {
