@@ -394,28 +394,47 @@ function renderReactComponent(codeText, container) {
                 let closeBraces = (iframeCode.match(/\}/g) || []).length;
                 let braceDiff = openBraces - closeBraces;
                 
-                // Если есть незакрытые скобки, закрываем их УМНО - не просто в конец, а в правильных местах
+                // Если есть незакрытые скобки, закрываем их в конце кода (перед тем, как вставим const Component)
                 if (braceDiff > 0) {
-                    console.warn(`⚠️ Обнаружено ${braceDiff} незакрытых фигурных скобок`);
+                    console.warn(`⚠️ Обнаружено ${braceDiff} незакрытых фигурных скобок, закрываем их в конце кода`);
                     
-                    // Ищем последние незакрытые объекты и закрываем их перед const Component
-                    // Находим позицию, где должен начинаться const Component
-                    const componentStart = iframeCode.indexOf('const Component');
-                    if (componentStart > 0) {
-                        // Вставляем закрывающие скобки перед const Component
-                        const beforeComponent = iframeCode.substring(0, componentStart);
-                        const afterComponent = iframeCode.substring(componentStart);
-                        
-                        // Закрываем незакрытые объекты
-                        let closingBraces = '';
-                        for (let i = 0; i < braceDiff; i++) {
-                            closingBraces += '\n}';
+                    // Находим конец функции компонента (последний return statement должен быть закрыт)
+                    // Ищем последний return и закрываем все незакрытые объекты после него
+                    const lastReturnIndex = iframeCode.lastIndexOf('return (');
+                    if (lastReturnIndex >= 0) {
+                        // Находим конец JSX (последняя закрывающая скобка компонента)
+                        // Ищем последнее вхождение закрывающей скобки компонента
+                        const lines = iframeCode.split('\n');
+                        let lastComponentLine = -1;
+                        for (let i = lines.length - 1; i >= 0; i--) {
+                            if (lines[i].trim() === ')' || lines[i].trim() === ');') {
+                                lastComponentLine = i;
+                                break;
+                            }
                         }
                         
-                        iframeCode = beforeComponent.trim() + closingBraces + '\n\n' + afterComponent;
-                        console.warn(`✅ Закрыто ${braceDiff} незакрытых объектов перед const Component`);
+                        if (lastComponentLine >= 0) {
+                            // Вставляем закрывающие скобки перед последней строкой компонента
+                            let closingBraces = '';
+                            for (let i = 0; i < braceDiff; i++) {
+                                closingBraces += '\n}';
+                            }
+                            
+                            // Вставляем закрывающие скобки перед последней строкой
+                            const beforeLast = lines.slice(0, lastComponentLine).join('\n');
+                            const lastLine = lines[lastComponentLine];
+                            const afterLast = lines.slice(lastComponentLine + 1).join('\n');
+                            
+                            iframeCode = beforeLast + closingBraces + '\n' + lastLine + (afterLast ? '\n' + afterLast : '');
+                            console.warn(`✅ Закрыто ${braceDiff} незакрытых объектов`);
+                        } else {
+                            // Если не нашли конец компонента, просто добавляем в конец
+                            for (let i = 0; i < braceDiff; i++) {
+                                iframeCode += '\n}';
+                            }
+                        }
                     } else {
-                        // Если const Component еще не вставлен, просто добавляем в конец
+                        // Если нет return, просто добавляем в конец
                         for (let i = 0; i < braceDiff; i++) {
                             iframeCode += '\n}';
                         }
@@ -429,15 +448,8 @@ function renderReactComponent(codeText, container) {
                 
                 if (parenDiff > 0) {
                     console.warn(`⚠️ Обнаружено ${parenDiff} незакрытых круглых скобок, закрываем их`);
-                    // Закрываем перед const Component, если он есть
-                    const componentStart = iframeCode.indexOf('const Component');
-                    if (componentStart > 0) {
-                        const beforeComponent = iframeCode.substring(0, componentStart);
-                        const afterComponent = iframeCode.substring(componentStart);
-                        iframeCode = beforeComponent + ')'.repeat(parenDiff) + '\n\n' + afterComponent;
-                    } else {
-                        iframeCode += ')'.repeat(parenDiff);
-                    }
+                    // Закрываем в конце кода
+                    iframeCode += ')'.repeat(parenDiff);
                 }
                 
                 // Убираем markdown разметку, если она осталась (```tsx, ``` и т.д.)
