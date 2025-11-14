@@ -94,8 +94,16 @@ func generateImageWithStableDiffusion(apiUrl, prompt, referenceImage string) (st
 	req.Header.Set("Content-Type", "application/json")
 
 	// Увеличиваем таймаут для генерации (на CPU может занять 5-15 минут)
+	// Используем Transport с keep-alive для переиспользования соединений
+	transport := &http.Transport{
+		MaxIdleConns:        10,
+		IdleConnTimeout:     30 * time.Second,
+		DisableKeepAlives:   false, // Включаем keep-alive для переиспользования соединений
+		DisableCompression:  false, // Разрешаем сжатие ответов
+	}
 	client := &http.Client{
-		Timeout: 900 * time.Second, // 15 минут для CPU генерации
+		Timeout:   900 * time.Second, // 15 минут для CPU генерации
+		Transport: transport,
 	}
 
 	log.Println("📤 Sending request to Stable Diffusion API...")
@@ -113,8 +121,15 @@ func generateImageWithStableDiffusion(apiUrl, prompt, referenceImage string) (st
 		return "", fmt.Errorf("Stable Diffusion API error: %d - %s", resp.StatusCode, string(body))
 	}
 
+	// Читаем ответ напрямую, без буферизации через json.Decoder
+	// Это быстрее для больших base64 ответов
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response body: %w", err)
+	}
+
 	var response GenerateImageResponse
-	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+	if err := json.Unmarshal(bodyBytes, &response); err != nil {
 		return "", fmt.Errorf("failed to decode response: %w", err)
 	}
 
