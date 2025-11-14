@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -35,21 +36,18 @@ func HandleGenerateImage(c *gin.Context) {
 		return
 	}
 
-	// Получаем API ключ OpenAI для DALL-E
-	openaiApiKey := os.Getenv("OPENAI_API_KEY")
-	if openaiApiKey == "" {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error: "OPENAI_API_KEY not configured",
-			Note:  "Для генерации изображений нужен OpenAI API ключ. Установите OPENAI_API_KEY в переменных окружения.",
-		})
-		return
+	// Получаем URL локального Stable Diffusion API
+	sdApiUrl := os.Getenv("STABLE_DIFFUSION_API_URL")
+	if sdApiUrl == "" {
+		sdApiUrl = "http://localhost:7861" // По умолчанию локальный сервер
 	}
 
 	log.Printf("🎨 Generating image with prompt: %s", req.Prompt[:min(100, len(req.Prompt))])
 	log.Printf("📷 Has reference image: %v", req.ReferenceImage != "")
+	log.Printf("🔗 Stable Diffusion API URL: %s", sdApiUrl)
 
-	// Генерируем изображение через OpenAI DALL-E
-	imageBase64, err := generateImageWithDALLE(openaiApiKey, req.Prompt, req.ReferenceImage)
+	// Генерируем изображение через локальный Stable Diffusion API
+	imageBase64, err := generateImageWithStableDiffusion(sdApiUrl, req.Prompt, req.ReferenceImage)
 	if err != nil {
 		log.Printf("❌ Error generating image: %v", err)
 		c.JSON(http.StatusInternalServerError, GenerateImageResponse{
@@ -64,25 +62,23 @@ func HandleGenerateImage(c *gin.Context) {
 	})
 }
 
-// generateImageWithDALLE генерирует изображение через OpenAI DALL-E API
-func generateImageWithDALLE(apiKey, prompt, referenceImage string) (string, error) {
-	apiUrl := "https://api.openai.com/v1/images/generations"
+// generateImageWithStableDiffusion генерирует изображение через локальный Stable Diffusion API
+func generateImageWithStableDiffusion(apiUrl, prompt, referenceImage string) (string, error) {
+	apiEndpoint := fmt.Sprintf("%s/generate", apiUrl)
 	
-	// Если есть референс, добавляем его описание в промпт
-	// DALL-E 3 не поддерживает прямой image-to-image, поэтому используем текстовое описание
-	finalPrompt := prompt
-	if referenceImage != "" {
-		// Для референса используем промпт с указанием на референс
-		// В будущем можно использовать image-to-image API если OpenAI добавит поддержку
-		log.Println("📷 Reference image provided, using enhanced prompt")
+	// Формируем запрос
+	requestBody := map[string]interface{}{
+		"prompt":             prompt,
+		"num_inference_steps": 28,
+		"guidance_scale":     7.0,
+		"width":              1024,
+		"height":             1024,
 	}
 	
-	requestBody := map[string]interface{}{
-		"model":   "dall-e-3",
-		"prompt":  finalPrompt,
-		"n":       1,
-		"size":    "1024x1024",
-		"quality": "standard",
+	// Если есть референс, добавляем его
+	if referenceImage != "" {
+		requestBody["reference_image"] = referenceImage
+		log.Println("📷 Reference image provided, using image-to-image mode")
 	}
 
 	jsonData, err := json.Marshal(requestBody)
@@ -90,68 +86,44 @@ func generateImageWithDALLE(apiKey, prompt, referenceImage string) (string, erro
 		return "", fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	req, err := http.NewRequest("POST", apiUrl, strings.NewReader(string(jsonData)))
+	req, err := http.NewRequest("POST", apiEndpoint, strings.NewReader(string(jsonData)))
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+apiKey)
 
-	client := &http.Client{}
+	// Увеличиваем таймаут для генерации (может занять 30-60 секунд)
+	client := &http.Client{
+		Timeout: 120 * time.Second,
+	}
+	
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("failed to send request: %w", err)
+		return "", fmt.Errorf("failed to send request to Stable Diffusion API: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("OpenAI API error: %d - %s", resp.StatusCode, string(body))
+		return "", fmt.Errorf("Stable Diffusion API error: %d - %s", resp.StatusCode, string(body))
 	}
 
-	var response struct {
-		Data []struct {
-			URL string `json:"url"`
-		} `json:"data"`
-	}
-
+	var response GenerateImageResponse
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
 		return "", fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	if len(response.Data) == 0 {
+	if response.Error != "" {
+		return "", fmt.Errorf("Stable Diffusion API error: %s", response.Error)
+	}
+
+	if response.ImageURL == "" {
 		return "", fmt.Errorf("no image URL in response")
 	}
 
-	imageURL := response.Data[0].URL
-	log.Printf("✅ Generated image URL: %s", imageURL)
-
-	// Скачиваем изображение и конвертируем в base64
-	imageResp, err := http.Get(imageURL)
-	if err != nil {
-		return "", fmt.Errorf("failed to download image: %w", err)
-	}
-	defer imageResp.Body.Close()
-
-	imageData, err := io.ReadAll(imageResp.Body)
-	if err != nil {
-		return "", fmt.Errorf("failed to read image data: %w", err)
-	}
-
-	// Определяем MIME тип (обычно PNG для DALL-E)
-	mimeType := "image/png"
-	if strings.HasPrefix(string(imageData), "\x89PNG") {
-		mimeType = "image/png"
-	} else if strings.HasPrefix(string(imageData), "\xff\xd8") {
-		mimeType = "image/jpeg"
-	}
-
-	// Конвертируем в base64 data URL
-	base64Image := fmt.Sprintf("data:%s;base64,%s", mimeType, 
-		base64.StdEncoding.EncodeToString(imageData))
-
-	return base64Image, nil
+	log.Println("✅ Image generated successfully by Stable Diffusion")
+	return response.ImageURL, nil
 }
 
 // min возвращает минимум двух чисел

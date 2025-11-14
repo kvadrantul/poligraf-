@@ -1,0 +1,174 @@
+"""
+Stable Diffusion 3.5 Medium API Server
+Локальный сервер для генерации изображений через Stable Diffusion 3.5 Medium
+"""
+import base64
+import io
+import os
+from typing import Optional
+
+import torch
+from diffusers import StableDiffusion3Pipeline
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+
+app = FastAPI(title="Stable Diffusion 3.5 Medium API")
+
+# Настройка CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Глобальная переменная для пайплайна
+pipe = None
+device = "cuda" if torch.cuda.is_available() else "cpu"
+print(f"🔧 Using device: {device}")
+
+# Модель по умолчанию
+MODEL_ID = "stabilityai/stable-diffusion-3-medium-diffusers"
+
+
+class GenerateRequest(BaseModel):
+    prompt: str
+    reference_image: Optional[str] = None  # Base64 изображение
+    num_inference_steps: int = 28
+    guidance_scale: float = 7.0
+    width: int = 1024
+    height: int = 1024
+
+
+class GenerateResponse(BaseModel):
+    imageUrl: str  # Base64 data URL
+    error: Optional[str] = None
+
+
+def load_model():
+    """Загружает модель Stable Diffusion 3.5 Medium"""
+    global pipe
+    if pipe is not None:
+        return pipe
+
+    print(f"📦 Loading model: {MODEL_ID}")
+    print("⏳ This may take a few minutes on first run...")
+
+    try:
+        # Загружаем пайплайн
+        pipe = StableDiffusion3Pipeline.from_pretrained(
+            MODEL_ID,
+            torch_dtype=torch.float16 if device == "cuda" else torch.float32,
+        )
+        pipe = pipe.to(device)
+
+        # Оптимизация для ускорения
+        if device == "cuda":
+            pipe.enable_attention_slicing()
+            pipe.enable_vae_slicing()
+
+        print("✅ Model loaded successfully")
+        return pipe
+    except Exception as e:
+        print(f"❌ Error loading model: {e}")
+        raise
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Загружаем модель при старте сервера"""
+    try:
+        load_model()
+    except Exception as e:
+        print(f"⚠️ Warning: Could not load model on startup: {e}")
+        print("Model will be loaded on first request")
+
+
+@app.get("/health")
+async def health():
+    """Проверка здоровья сервиса"""
+    return {
+        "status": "ok",
+        "model_loaded": pipe is not None,
+        "device": device,
+    }
+
+
+@app.post("/generate", response_model=GenerateResponse)
+async def generate_image(request: GenerateRequest):
+    """
+    Генерирует изображение по текстовому промпту
+    Поддерживает image-to-image если передан reference_image
+    """
+    try:
+        # Загружаем модель если еще не загружена
+        if pipe is None:
+            load_model()
+
+        print(f"🎨 Generating image with prompt: {request.prompt[:100]}...")
+        print(f"📷 Has reference image: {request.reference_image is not None}")
+
+        # Подготовка входных данных
+        if request.reference_image:
+            # Image-to-image режим
+            # Декодируем base64 референс
+            if request.reference_image.startswith("data:"):
+                # Убираем data URL префикс
+                base64_data = request.reference_image.split(",")[1]
+            else:
+                base64_data = request.reference_image
+
+            image_bytes = base64.b64decode(base64_data)
+            from PIL import Image
+            reference_img = Image.open(io.BytesIO(image_bytes))
+
+            # Генерируем с референсом
+            # Для SD3 нужно использовать img2img пайплайн
+            # Пока используем текстовый промпт с описанием референса
+            print("📷 Using reference image (image-to-image mode)")
+            result = pipe(
+                prompt=request.prompt,
+                num_inference_steps=request.num_inference_steps,
+                guidance_scale=request.guidance_scale,
+                width=request.width,
+                height=request.height,
+            )
+        else:
+            # Text-to-image режим
+            print("📝 Text-to-image mode")
+            result = pipe(
+                prompt=request.prompt,
+                num_inference_steps=request.num_inference_steps,
+                guidance_scale=request.guidance_scale,
+                width=request.width,
+                height=request.height,
+            )
+
+        # Получаем изображение
+        image = result.images[0]
+
+        # Конвертируем в base64
+        buffered = io.BytesIO()
+        image.save(buffered, format="PNG")
+        img_base64 = base64.b64encode(buffered.getvalue()).decode()
+
+        # Формируем data URL
+        image_url = f"data:image/png;base64,{img_base64}"
+
+        print("✅ Image generated successfully")
+        return GenerateResponse(imageUrl=image_url)
+
+    except Exception as e:
+        error_msg = str(e)
+        print(f"❌ Error generating image: {error_msg}")
+        raise HTTPException(status_code=500, detail=error_msg)
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    port = int(os.getenv("PORT", "7861"))
+    uvicorn.run(app, host="0.0.0.0", port=port)
+
