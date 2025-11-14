@@ -117,9 +117,25 @@ func HandleGenerate(c *gin.Context) {
 	}
 
 	// Извлекаем код из ответа
+	log.Printf("📦 Raw generated content length: %d chars", len(generatedContent))
+	previewLen := 300
+	if len(generatedContent) < previewLen {
+		previewLen = len(generatedContent)
+	}
+	if previewLen > 0 {
+		log.Printf("📦 Raw generated content preview (first %d chars): %s", previewLen, generatedContent[:previewLen])
+	}
+	
 	extractedCode := extractCodeFromResponse(generatedContent)
+	log.Printf("📦 Extracted code length: %d chars", len(extractedCode))
+	
 	if extractedCode == "" {
+		log.Println("⚠️ Extracted code is empty, using raw content")
 		extractedCode = generatedContent
+	}
+	
+	if len(extractedCode) < 10 {
+		log.Printf("⚠️ Extracted code is very short (%d chars), may be invalid", len(extractedCode))
 	}
 
 	provider := "v0.dev"
@@ -300,12 +316,20 @@ func callV0(apiKey, userPrompt, image string) (string, error) {
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		log.Printf("❌ Failed to decode v0.dev response: %v", err)
-		log.Printf("Response body (first 500 chars): %s", string(bodyBytes)[:min(500, len(string(bodyBytes)))])
+		bodyLen := len(string(bodyBytes))
+		previewLen := 500
+		if bodyLen < previewLen {
+			previewLen = bodyLen
+		}
+		if previewLen > 0 {
+			log.Printf("Response body (first %d chars): %s", previewLen, string(bodyBytes)[:previewLen])
+		}
 		return "", fmt.Errorf("failed to decode response: %w", err)
 	}
 
 	if len(response.Choices) == 0 {
 		log.Println("❌ No choices in v0.dev response")
+		log.Printf("📋 Full response structure: %+v", response)
 		return "", fmt.Errorf("no content generated")
 	}
 
@@ -315,10 +339,26 @@ func callV0(apiKey, userPrompt, image string) (string, error) {
 	}
 	if content == "" {
 		log.Println("❌ Empty content in v0.dev response")
+		log.Printf("📋 Choice structure: %+v", response.Choices[0])
 		return "", fmt.Errorf("no content generated")
 	}
 
 	log.Printf("✅ v0.dev API response received: %d chars", len(content))
+	previewLen := 500
+	if len(content) < previewLen {
+		previewLen = len(content)
+	}
+	if previewLen > 0 {
+		log.Printf("📋 Content preview (first %d chars): %s", previewLen, content[:previewLen])
+	}
+	
+	// Проверяем, есть ли код в ответе
+	if strings.Contains(content, "```") {
+		log.Println("✅ Content contains code blocks")
+	} else {
+		log.Println("⚠️ Content does not contain code blocks - may be plain text")
+	}
+	
 	return content, nil
 }
 
