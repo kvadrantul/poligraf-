@@ -355,8 +355,8 @@ async def generate_image(request: GenerateRequest):
                     guidance = 1.0
                     print(f"⚡⚡⚡ LCM mode (FASTEST!): {steps} steps, guidance={guidance}")
                 
-                # Негативный промпт для image-to-image
-                negative_prompt = request.negative_prompt or "blurry, low quality, distorted, black image, dark, noise, text, watermark, signature"
+                # Негативный промпт для image-to-image (БЕЗ "black image"!)
+                negative_prompt = request.negative_prompt or "blurry, low quality, distorted, dark, noise, text, watermark, signature"
                 
                 pipe_kwargs = {
                     "prompt": request.prompt,
@@ -419,8 +419,8 @@ async def generate_image(request: GenerateRequest):
                 print(f"📊 BEFORE pipe(): CPU={cpu_before:.1f}%, Threads={threads_before}")
                 sys.stdout.flush()
                 
-                # Негативный промпт для улучшения качества
-                negative_prompt = request.negative_prompt or "blurry, low quality, distorted, black image, dark, noise, text, watermark, signature"
+                # Негативный промпт для улучшения качества (БЕЗ "black image" - это может вызывать черные изображения!)
+                negative_prompt = request.negative_prompt or "blurry, low quality, distorted, dark, noise, text, watermark, signature"
                 
                 print(f"📝 Negative prompt: {negative_prompt[:50]}...")
                 

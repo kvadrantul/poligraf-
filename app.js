@@ -767,8 +767,8 @@ async function generateImage(prompt, referenceImage) {
         console.log('  - Translated prompt:', imagePrompt);
     }
     
-    // Негативный промпт для улучшения качества
-    const negativePrompt = "blurry, low quality, distorted, black image, dark, noise, text, watermark, signature, ugly, bad anatomy";
+    // Негативный промпт для улучшения качества (БЕЗ "black image" - это может вызывать черные изображения!)
+    const negativePrompt = "blurry, low quality, distorted, dark, noise, text, watermark, signature, ugly, bad anatomy";
     
     const response = await fetch(API_GENERATE_IMAGE, {
         method: 'POST',
