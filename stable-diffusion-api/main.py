@@ -152,61 +152,23 @@ def load_model():
             print(f"📥 Loading model: {MODEL_ID}")
             sys.stdout.flush()
             
-            # Отслеживаем прогресс скачивания через callback
-            import threading
-            import time
-            
-            download_started = {"value": False}
-            
-            def progress_callback(downloaded, total):
-                """Callback для отслеживания прогресса скачивания"""
-                if total > 0:
-                    download_started["value"] = True
-                    percent = (downloaded / total) * 100
-                    if downloaded % (total // 10) == 0 or downloaded == total:  # Логируем каждые 10%
-                        print(f"📥 Download progress: {percent:.1f}% ({downloaded}/{total} bytes)")
-                        sys.stdout.flush()
-            
-            # Устанавливаем таймаут на начало скачивания
-            download_timeout = threading.Event()
-            download_timeout_reached = {"value": False}
-            
-            def check_timeout():
-                """Проверяет, началось ли скачивание за 15 секунд"""
-                time.sleep(15)
-                if not download_started["value"]:
-                    download_timeout_reached["value"] = True
-                    download_timeout.set()
-                    print("❌ No download progress detected in 15 seconds")
-                    sys.stdout.flush()
-            
-            timeout_thread = threading.Thread(target=check_timeout, daemon=True)
-            timeout_thread.start()
+            # Простая загрузка модели - diffusers сам покажет прогресс
+            # Если модель в кеше - загрузится быстро, если нет - начнет скачивать
+            print("⏳ Loading model (from cache or downloading)...")
+            sys.stdout.flush()
             
             try:
-                # Пробуем загрузить модель с отслеживанием прогресса
-                # Diffusers автоматически показывает прогресс, но мы можем перехватить его
-                print("⏳ Starting download (will timeout if no progress in 15 sec)...")
-                sys.stdout.flush()
-                
-                # Загружаем модель (diffusers покажет прогресс автоматически)
+                # Загружаем модель (diffusers покажет прогресс автоматически через tqdm)
                 pipe = StableDiffusionPipeline.from_pretrained(
                     MODEL_ID,
                     torch_dtype=torch.float16 if device == "cuda" else torch.float32,
                 )
-                
-                # Если дошли сюда - модель загрузилась
-                download_started["value"] = True
                 print("✅ Model downloaded/loaded successfully")
                 sys.stdout.flush()
             except Exception as e:
                 error_msg = str(e)
                 print(f"❌ Error loading model: {error_msg}")
                 sys.stdout.flush()
-                
-                # Если ошибка и нет прогресса скачивания - пробуем fallback
-                if not download_started["value"] or download_timeout_reached["value"]:
-                    raise TimeoutError("Model download did not start or progress")
                 raise
         pipe = pipe.to(device)
 
