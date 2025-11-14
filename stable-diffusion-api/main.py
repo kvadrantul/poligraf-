@@ -166,6 +166,9 @@ def load_model():
             sys.stdout.flush()
             
             try:
+                # ВАЖНО: объявляем global ДО использования переменных
+                global pipe, img2img_pipe_global
+                
                 # Загружаем text-to-image пайплайн (основной)
                 pipe = StableDiffusionPipeline.from_pretrained(
                     MODEL_ID,
@@ -184,8 +187,6 @@ def load_model():
                 sys.stdout.flush()
                 
                 # Сохраняем оба пайплайна в глобальной переменной
-                # Используем словарь для хранения обоих
-                global pipe, img2img_pipe_global
                 img2img_pipe_global = img2img_pipe
             except Exception as e:
                 error_msg = str(e)
@@ -249,12 +250,14 @@ def load_model():
                 print("📦 Loading fallback model: CompVis/stable-diffusion-v1-4")
                 sys.stdout.flush()
                 
+                # ВАЖНО: объявляем global ДО использования переменных
+                global pipe, img2img_pipe_global
+                
                 pipe = StableDiffusionPipeline.from_pretrained(
                     "CompVis/stable-diffusion-v1-4",
                     torch_dtype=torch.float32,
                 )
                 # Загружаем img2img пайплайн для fallback модели
-                global img2img_pipe_global
                 img2img_pipe_global = StableDiffusionImg2ImgPipeline.from_pretrained(
                     "CompVis/stable-diffusion-v1-4",
                     torch_dtype=torch.float32,
