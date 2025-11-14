@@ -10,7 +10,6 @@ const resultContent = document.getElementById('resultContent');
 const commentInput = document.getElementById('commentInput');
 const sendButton = document.getElementById('sendButton');
 const newButton = document.getElementById('newButton');
-const imageGenerationButton = document.getElementById('imageGenerationButton');
 // Кнопки полиграфии и провайдера удалены - они всегда включены
 const imageUploadButton = document.getElementById('imageUploadButton');
 const imageInput = document.getElementById('imageInput');
@@ -21,9 +20,6 @@ const resultArea = document.querySelector('.result-area');
 
 // Переменная для хранения загруженного изображения (base64)
 let uploadedImageBase64 = null;
-
-// Состояние генерации изображения (по умолчанию включено)
-let imageGenerationEnabled = true;
 
 // Проверяем, что элементы найдены
 if (!commentInput) {
@@ -730,20 +726,10 @@ async function sendToV0(prompt) {
             console.error('resultArea not found for loading overlay');
         }
 
-        // ЭТАП 1: Генерируем изображение (если включено)
-        let generatedImage = null;
-        if (imageGenerationEnabled) {
-            console.log('🎨 Step 1: Generating image...');
-            generatedImage = await generateImage(prompt, uploadedImageBase64);
-            console.log('✅ Image generated, proceeding to v0.dev');
-        } else {
-            console.log('⏭️ Image generation disabled, skipping to v0.dev');
-            // Если есть загруженное изображение, используем его
-            if (uploadedImageBase64) {
-                generatedImage = uploadedImageBase64;
-                console.log('📷 Using uploaded image instead');
-            }
-        }
+        // ЭТАП 1: Генерируем изображение
+        console.log('🎨 Step 1: Generating image...');
+        const generatedImage = await generateImage(prompt, uploadedImageBase64);
+        console.log('✅ Image generated, proceeding to v0.dev');
 
         // ЭТАП 2: Формируем промпт для v0.dev с сгенерированным изображением
         const htmlKey = `poligraf-last-html-${userId}`;
@@ -989,39 +975,6 @@ if (sendButton) {
     console.error('Cannot add event listener: sendButton is null');
 }
 
-
-// Инициализация состояния кнопки генерации изображения
-const savedImageGenState = localStorage.getItem('poligraf-image-generation-enabled');
-if (savedImageGenState !== null) {
-    imageGenerationEnabled = savedImageGenState === 'true';
-}
-
-// Функция обновления внешнего вида кнопки
-function updateImageGenerationButton() {
-    if (imageGenerationButton) {
-        if (imageGenerationEnabled) {
-            imageGenerationButton.classList.add('active');
-        } else {
-            imageGenerationButton.classList.remove('active');
-        }
-    }
-}
-
-// Инициализируем состояние кнопки при загрузке
-updateImageGenerationButton();
-
-// Обработчик переключения генерации изображения
-if (imageGenerationButton) {
-    imageGenerationButton.addEventListener('click', () => {
-        imageGenerationEnabled = !imageGenerationEnabled;
-        localStorage.setItem('poligraf-image-generation-enabled', imageGenerationEnabled.toString());
-        updateImageGenerationButton();
-        tg.HapticFeedback.impactOccurred('light');
-        console.log('🖼️ Image generation:', imageGenerationEnabled ? 'ENABLED' : 'DISABLED');
-    });
-} else {
-    console.error('Cannot add event listener: imageGenerationButton is null');
-}
 
 // Обработчик кнопки "Новый"
 if (newButton) {
