@@ -990,25 +990,37 @@ if (sendButton) {
 }
 
 
-// Инициализация состояния кнопки генерации изображения
-const savedImageGenState = localStorage.getItem('poligraf-image-generation-enabled');
-if (savedImageGenState !== null) {
-    imageGenerationEnabled = savedImageGenState === 'true';
-}
-
 // Функция обновления внешнего вида кнопки
 function updateImageGenerationButton() {
     if (imageGenerationButton) {
         if (imageGenerationEnabled) {
             imageGenerationButton.classList.add('active');
+            console.log('✅ Image generation button: ACTIVE class added');
         } else {
             imageGenerationButton.classList.remove('active');
+            console.log('✅ Image generation button: ACTIVE class removed');
         }
+    } else {
+        console.error('❌ imageGenerationButton is null');
     }
 }
 
-// Инициализируем состояние кнопки при загрузке
-updateImageGenerationButton();
+// Инициализация состояния кнопки генерации изображения
+const savedImageGenState = localStorage.getItem('poligraf-image-generation-enabled');
+if (savedImageGenState !== null) {
+    imageGenerationEnabled = savedImageGenState === 'true';
+    console.log('📦 Loaded image generation state from localStorage:', imageGenerationEnabled);
+} else {
+    console.log('📦 Using default image generation state:', imageGenerationEnabled);
+}
+
+// Инициализируем состояние кнопки при загрузке (после того как DOM готов)
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', updateImageGenerationButton);
+} else {
+    // DOM уже загружен
+    updateImageGenerationButton();
+}
 
 // Обработчик кнопки "Изображение" (тоггл)
 if (imageGenerationButton) {
