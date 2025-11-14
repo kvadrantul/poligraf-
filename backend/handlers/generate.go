@@ -344,9 +344,10 @@ func extractCodeFromResponse(content string) string {
 	thinkingRegex2 := regexp.MustCompile("(?i)\\[?thinking\\]?:?.*?\\[/thinking\\]?")
 	content = thinkingRegex2.ReplaceAllString(content, "")
 
-	// Формат 3: Thinking: ... до следующего блока
-	thinkingRegex3 := regexp.MustCompile("(?i)thinking:.*?(?=```|---|===|\\n\\n)")
-	content = thinkingRegex3.ReplaceAllString(content, "")
+	// Формат 3: Thinking: ... до следующего блока (без lookahead, т.к. Go не поддерживает)
+	// Ищем "thinking:" и удаляем до следующего блока кода или разделителя
+	thinkingRegex3 := regexp.MustCompile("(?i)thinking:.*?(```|---|===|\\n\\n)")
+	content = thinkingRegex3.ReplaceAllString(content, "$1") // Оставляем только разделитель
 
 	// Если после удаления thinking остался контент, возвращаем его
 	cleaned := strings.TrimSpace(content)
@@ -372,4 +373,3 @@ func extractCodeFromResponse(content string) string {
 	log.Println("No code blocks found, returning full content")
 	return strings.TrimSpace(originalContent)
 }
-
