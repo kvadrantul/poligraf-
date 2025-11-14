@@ -377,7 +377,20 @@ function displayResult(result) {
     const resultItem = document.createElement('div');
     resultItem.className = 'result-item';
     
-    const codeText = typeof result === 'string' ? result : (result.code || result.markup || JSON.stringify(result, null, 2));
+    let codeText = typeof result === 'string' ? result : (result.code || result.markup || JSON.stringify(result, null, 2));
+    
+    // Убеждаемся, что codeText - строка
+    if (typeof codeText !== 'string') {
+        console.warn('⚠️ codeText is not a string in displayResult, converting...');
+        codeText = String(codeText);
+    }
+    
+    console.log('📦 displayResult called with:', {
+        resultType: typeof result,
+        codeTextType: typeof codeText,
+        codeTextLength: codeText?.length || 0,
+        codeTextPreview: codeText?.substring(0, 200) || 'N/A'
+    });
     
     // Валидация: проверяем, что результат не пустой
     if (!codeText || codeText.trim().length < 10) {
