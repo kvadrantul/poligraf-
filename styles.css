@@ -314,18 +314,17 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
+    gap: 8px;
     background: rgba(255, 255, 255, 0.1);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 50px;
-    padding: 10px 16px;
+    padding: 10px 20px;
     color: rgba(255, 255, 255, 0.5);
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: background 0.2s, opacity 0.2s;
     backdrop-filter: blur(10px);
-    min-width: 50px;
 }
 
 .image-generation-button.active {
@@ -343,12 +342,13 @@ body {
 }
 
 .image-generation-button:active {
-    transform: scale(0.95);
+    background: rgba(255, 255, 255, 0.15);
+    opacity: 0.8;
 }
 
 .image-generation-button svg {
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
     flex-shrink: 0;
 }
 
