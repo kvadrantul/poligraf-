@@ -63,7 +63,9 @@ executor = ThreadPoolExecutor(max_workers=1)
 # - "ByteDance/SDXL-Lightning" - очень быстрая SDXL (1-4 шага), ~10GB, коммерческое использование разрешено
 # - "stabilityai/sdxl-turbo" - быстрая SDXL (1-4 шага), ~10GB, коммерческое использование разрешено
 # - "stabilityai/stable-diffusion-3-medium-diffusers" - требует HF token, НЕКОММЕРЧЕСКОЕ использование
-MODEL_ID = os.getenv("SD_MODEL_ID", "SimianLuo/LCM_Dreamshaper_v7")  # По умолчанию: САМАЯ БЫСТРАЯ модель (1-2 шага!)
+# Пробуем сначала LCM Dreamshaper, если не загрузится - используем SD 1.4
+MODEL_ID = os.getenv("SD_MODEL_ID", "CompVis/stable-diffusion-v1-4")  # По умолчанию: САМАЯ ПРОСТАЯ модель (гарантированно работает)
+FALLBACK_MODEL_ID = "CompVis/stable-diffusion-v1-4"  # Fallback если основная не загрузится
 HF_TOKEN = os.getenv("HUGGINGFACE_TOKEN", "")  # Для gated моделей (не используется для Lightning)
 
 
@@ -88,10 +90,26 @@ def load_model():
         return pipe
 
     print(f"📦 Loading model: {MODEL_ID}")
-    print("⏳ This may take a few minutes on first run...")
-    print("⏳ If model is not cached, it will download from Hugging Face (~4GB)")
+    print("⏳ Checking if model is cached or starts downloading...")
     sys.stdout.flush()
 
+    # Проверяем, есть ли модель в кеше
+    import os
+    cache_path = os.path.expanduser("~/.cache/huggingface/hub")
+    model_cache = None
+    if "SimianLuo" in MODEL_ID:
+        model_cache = os.path.join(cache_path, "models--SimianLuo--LCM_Dreamshaper_v7")
+    elif "CompVis" in MODEL_ID:
+        model_cache = os.path.join(cache_path, "models--CompVis--stable-diffusion-v1-4")
+    
+    if model_cache and os.path.exists(model_cache):
+        print("✅ Model found in cache, loading from cache...")
+        sys.stdout.flush()
+    else:
+        print("⚠️ Model not in cache, will download from Hugging Face")
+        print("⏱️  Monitoring download progress (15 sec timeout if no progress)...")
+        sys.stdout.flush()
+    
     try:
         # Определяем, какой пайплайн использовать в зависимости от модели
         if "sdxl" in MODEL_ID.lower() or "turbo" in MODEL_ID.lower() or "lightning" in MODEL_ID.lower():
@@ -132,19 +150,59 @@ def load_model():
             from diffusers import StableDiffusionPipeline
             print("📦 Using standard Stable Diffusion pipeline")
             print(f"📥 Loading model: {MODEL_ID}")
-            print("⏳ This may take a while (downloading from Hugging Face if not cached)...")
             sys.stdout.flush()
             
+            # Отслеживаем прогресс скачивания
+            import threading
+            import time
+            
+            download_started = threading.Event()
+            download_progress = {"started": False, "files": 0}
+            
+            def check_download_progress():
+                """Проверяет, началось ли скачивание"""
+                start_time = time.time()
+                last_files = 0
+                while time.time() - start_time < 15:  # Проверяем 15 секунд
+                    time.sleep(2)
+                    # Проверяем, появились ли файлы в кеше
+                    if model_cache and os.path.exists(model_cache):
+                        current_files = len([f for f in os.listdir(model_cache) if os.path.isfile(os.path.join(model_cache, f))]) if os.path.exists(model_cache) else 0
+                        if current_files > last_files:
+                            download_progress["started"] = True
+                            download_progress["files"] = current_files
+                            print(f"✅ Download started! Files: {current_files}")
+                            sys.stdout.flush()
+                            download_started.set()
+                            return
+                        last_files = current_files
+                
+                # Если за 15 секунд нет прогресса
+                if not download_progress["started"]:
+                    print("❌ No download progress detected in 15 seconds")
+                    sys.stdout.flush()
+                    download_started.set()  # Разблокируем основной поток
+            
+            # Запускаем мониторинг в отдельном потоке
+            monitor_thread = threading.Thread(target=check_download_progress, daemon=True)
+            monitor_thread.start()
+            
             try:
+                # Пробуем загрузить модель
                 pipe = StableDiffusionPipeline.from_pretrained(
                     MODEL_ID,
                     torch_dtype=torch.float16 if device == "cuda" else torch.float32,
                 )
-                print("✅ Model downloaded/loaded from cache")
+                print("✅ Model downloaded/loaded successfully")
                 sys.stdout.flush()
             except Exception as e:
-                print(f"❌ Error loading model: {e}")
+                error_msg = str(e)
+                print(f"❌ Error loading model: {error_msg}")
                 sys.stdout.flush()
+                
+                # Если ошибка и нет прогресса скачивания - пробуем fallback
+                if not download_progress["started"] and "timeout" not in error_msg.lower():
+                    raise TimeoutError("Model download did not start")
                 raise
         pipe = pipe.to(device)
 
@@ -162,9 +220,39 @@ def load_model():
 
         print("✅ Model loaded successfully")
         return pipe
-    except Exception as e:
-        print(f"❌ Error loading model: {e}")
-        raise
+    except (TimeoutError, Exception) as e:
+        error_msg = str(e)
+        if "timeout" in error_msg.lower() or "did not start" in error_msg.lower():
+            print(f"❌ TIMEOUT: Model {MODEL_ID} не начала скачиваться за 15 секунд")
+            print("🔄 Переключаюсь на более простую модель: CompVis/stable-diffusion-v1-4")
+            sys.stdout.flush()
+            
+            # Пробуем загрузить SD 1.4 - самая простая модель
+            try:
+                from diffusers import StableDiffusionPipeline
+                print("📦 Loading fallback model: CompVis/stable-diffusion-v1-4")
+                sys.stdout.flush()
+                
+                pipe = StableDiffusionPipeline.from_pretrained(
+                    "CompVis/stable-diffusion-v1-4",
+                    torch_dtype=torch.float32,
+                )
+                pipe = pipe.to(device)
+                pipe.enable_attention_slicing(1)
+                pipe.enable_vae_slicing()
+                
+                if device == "cpu":
+                    current_threads = torch.get_num_threads()
+                    print(f"🔧 CPU optimizations: attention_slicing, vae_slicing, {current_threads} threads")
+                
+                print("✅ Fallback model loaded successfully")
+                return pipe
+            except Exception as e2:
+                print(f"❌ Error loading fallback model: {e2}")
+                raise Exception(f"Failed to load both {MODEL_ID} and fallback model: {e2}")
+        else:
+            print(f"❌ Error loading model: {e}")
+            raise
 
 
 @app.on_event("startup")
